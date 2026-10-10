@@ -71,6 +71,9 @@ function game_media(array $game, ?callable $footer = null): void
         <?php if ($game['description'] !== ''): ?>
             <p class="desc"><?= e($game['description']) ?></p>
         <?php endif; ?>
+        <?php if (($game['comment'] ?? '') !== ''): ?>
+            <p class="comment">💬 <strong><?= e($game['proposed_by'] ?? 'Mon commentaire') ?> :</strong> <?= nl2br(e($game['comment'])) ?></p>
+        <?php endif; ?>
         <p class="links">
             <?php if ($game['video_url'] !== ''): ?><a href="<?= e($game['video_url']) ?>" target="_blank" rel="noopener">▶ Vidéo</a><?php endif; ?>
             <?php if ($game['store_url'] !== ''): ?><a href="<?= e($game['store_url']) ?>" target="_blank" rel="noopener">🔗 Fiche</a><?php endif; ?>

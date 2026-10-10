@@ -41,6 +41,7 @@ function db(): PDO
             image_url   TEXT NOT NULL DEFAULT '',
             video_url   TEXT NOT NULL DEFAULT '',
             store_url   TEXT NOT NULL DEFAULT '',
+            comment     TEXT NOT NULL DEFAULT '',
             created_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             UNIQUE (user_id, normalized)
         );
@@ -66,6 +67,7 @@ function db(): PDO
             image_url    TEXT NOT NULL DEFAULT '',
             video_url    TEXT NOT NULL DEFAULT '',
             store_url    TEXT NOT NULL DEFAULT '',
+            comment      TEXT NOT NULL DEFAULT '',
             created_at   TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             UNIQUE (lan_id, normalized),
             UNIQUE (lan_id, steam_appid)
@@ -81,7 +83,19 @@ function db(): PDO
         );
         SQL);
 
+    // Colonnes ajoutées après coup : mise à jour des bases déjà créées
+    add_missing_column($pdo, 'list_games', 'comment', "TEXT NOT NULL DEFAULT ''");
+    add_missing_column($pdo, 'proposals', 'comment', "TEXT NOT NULL DEFAULT ''");
+
     return $pdo;
+}
+
+function add_missing_column(PDO $pdo, string $table, string $column, string $definition): void
+{
+    $columns = array_column($pdo->query("PRAGMA table_info({$table})")->fetchAll(), 'name');
+    if (!in_array($column, $columns, true)) {
+        $pdo->exec("ALTER TABLE {$table} ADD COLUMN {$column} {$definition}");
+    }
 }
 
 function db_row(string $sql, array $params = []): ?array
@@ -214,10 +228,10 @@ function propose_to_lan(array $user, array $game, array $lan): array
     }
     try {
         db_exec('INSERT INTO proposals (lan_id, user_id, list_game_id, title, normalized, steam_appid,
-                                        description, tags, image_url, video_url, store_url)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
+                                        description, tags, image_url, video_url, store_url, comment)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
             $lan['id'], $user['id'], $game['id'], $game['title'], $game['normalized'], $steamAppId,
-            $game['description'], $game['tags'], $game['image_url'], $game['video_url'], $game['store_url'],
+            $game['description'], $game['tags'], $game['image_url'], $game['video_url'], $game['store_url'], $game['comment'],
         ]);
     } catch (PDOException) {
         return [false, "« {$game['title']} » vient d'être proposé par quelqu'un d'autre."];

@@ -6,7 +6,7 @@ declare(strict_types=1);
  * Si la description est vide (pas de JavaScript, ou champ vidé), on complète automatiquement.
  *
  * @return array{title: string, description: string, video_url: string, store_url: string,
- *               image_url: string, tags: string, steam_appid: ?int}
+ *               image_url: string, tags: string, steam_appid: ?int, comment: string}
  */
 function game_from_post(): array
 {
@@ -18,6 +18,7 @@ function game_from_post(): array
         'image_url' => clean_url(post_string('image_url')),
         'tags' => clean_line(post_string('tags'), 300),
         'steam_appid' => ctype_digit(post_string('steam_appid')) ? (int) post_string('steam_appid') : null,
+        'comment' => trim(mb_substr(post_string('comment'), 0, 500)),
     ];
 
     if ($game['description'] === '' && normalize_key($game['title']) !== '') {
@@ -40,7 +41,7 @@ function render_game_form(?array $game, array $openLans = []): void
 {
     $editing = $game !== null;
     $game ??= ['id' => 0, 'title' => '', 'description' => '', 'video_url' => '', 'store_url' => '',
-               'image_url' => '', 'tags' => '', 'steam_appid' => null];
+               'image_url' => '', 'tags' => '', 'steam_appid' => null, 'comment' => ''];
     ?>
     <form method="post" class="card" id="game-form" autocomplete="off" data-mode="<?= $editing ? 'edit' : 'add' ?>">
         <?= csrf_field() ?>
@@ -75,6 +76,10 @@ function render_game_form(?array $game, array $openLans = []): void
 
         <label>Lien fiche du jeu (Steam, Wikipédia, site officiel…)
             <input type="url" name="store_url" id="store_url" value="<?= e($game['store_url']) ?>">
+        </label>
+
+        <label>Mon commentaire <small class="muted">(facultatif — affiché avec ton nom si tu proposes le jeu à une LAN)</small>
+            <textarea name="comment" rows="2" maxlength="500" placeholder="ex. Parfait à 8, parties de 20 minutes, gratuit sur Epic…"><?= e($game['comment']) ?></textarea>
         </label>
 
         <?php if (!$editing && $openLans): ?>

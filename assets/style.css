@@ -156,3 +156,4 @@ details.card[open] summary { margin-bottom: 14px; }
     .users .muted { display: none; }
     .users .actions { white-space: normal; }
 }
+.comment { margin: 0 0 8px; padding: 6px 10px; border-left: 3px solid var(--accent); background: var(--panel-2); border-radius: 0 8px 8px 0; font-size: .9rem; }

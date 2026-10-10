@@ -19,16 +19,29 @@ Prérequis : PHP 8.1+ avec les extensions `pdo_sqlite` et `curl` (présentes che
 
 1. Copier les fichiers sur l'hébergement (ex. dans un dossier `/lan/`).
 2. Copier `config.local.sample.php` en `config.local.php` et définir `admin_password`.
-3. Vérifier que le dossier `data/` est accessible en écriture par PHP (la base SQLite y est créée automatiquement).
+3. Choisir où stocker la base SQLite (`db_path`), idéalement **hors du dossier web** ; sinon le dossier `data/` doit être accessible en écriture par PHP.
 
 Rien d'autre : pas de base MySQL, pas de Composer, pas de build.
 
-Sous Apache, les fichiers `.htaccess` fournis bloquent l'accès direct à `inc/`, `data/` et aux fichiers de configuration.
-Sous Nginx, ajouter l'équivalent :
+## Mise en ligne sur Plesk (déploiement automatique depuis GitHub)
+
+1. **Domaine** : dans Plesk, créer le (sous-)domaine, choisir PHP 8.2+ (FPM) dans *Paramètres PHP* et activer le certificat Let's Encrypt.
+2. **Git** : *Sites Web & Domaines › Git* (extension « Git », à installer depuis *Extensions* si absente).
+   - Dépôt distant : `git@github.com:boulezor/module-lan.git` et la branche à déployer.
+   - Plesk affiche une **clé SSH publique** : l'ajouter dans GitHub › dépôt › *Settings › Deploy keys* (lecture seule).
+   - Mode de déploiement **automatique**, chemin du serveur : `httpdocs` (ou `httpdocs/lan`).
+   - Copier l'**URL du webhook** donnée par Plesk dans GitHub › *Settings › Webhooks* : chaque push sur la branche met le site à jour.
+3. **Base hors du web** : avec le gestionnaire de fichiers, créer `private/lan/` (à côté de `httpdocs`, pas dedans).
+4. **Configuration** : dans le dossier déployé, créer `config.local.php` (à partir de `config.local.sample.php`) avec le mot de passe
+   organisateur et `'db_path' => '/var/www/vhosts/<domaine>/private/lan/lan.sqlite'`.
+   Ce fichier et la base ne sont pas dans Git : les déploiements suivants n'y touchent pas.
+
+⚠️ Plesk fait servir les fichiers statiques directement par nginx, **sans appliquer les `.htaccess`**.
+D'où la base dans `private/`. Par sécurité, ajouter aussi dans *Paramètres Apache & nginx › Directives nginx supplémentaires* :
 
 ```nginx
-location ~ ^/(lan/)?(inc|data)/ { deny all; }
-location ~ /config.*\.php$ { deny all; }
+location ~ /(inc|data)/ { deny all; }
+location ~ \.sqlite { deny all; }
 ```
 
 ## Description automatique : faut-il une clé API ?
