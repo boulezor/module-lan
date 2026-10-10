@@ -4,10 +4,12 @@ declare(strict_types=1);
 function page_header(string $title, string $active): void
 {
     $nav = [
-        'proposer' => ['index.php', 'Proposer'],
+        'accueil' => ['index.php', 'LAN'],
+        'liste' => ['ma-liste.php', 'Ma liste'],
         'voter' => ['voter.php', 'Voter'],
         'resultats' => ['resultats.php', 'Résultats 🔒'],
     ];
+    $user = current_user();
     ?>
 <!doctype html>
 <html lang="fr">
@@ -25,6 +27,16 @@ function page_header(string $title, string $active): void
             <?php foreach ($nav as $key => [$href, $label]): ?>
                 <a href="<?= $href ?>"<?= $key === $active ? ' class="active"' : '' ?>><?= e($label) ?></a>
             <?php endforeach; ?>
+            <?php if ($user): ?>
+                <form method="post" action="connexion.php" class="inline user-menu">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="action" value="logout">
+                    <span class="muted"><?= e($user['name']) ?></span>
+                    <button type="submit" class="btn-link">Déconnexion</button>
+                </form>
+            <?php else: ?>
+                <a href="connexion.php"<?= $active === 'connexion' ? ' class="active"' : '' ?>>Connexion</a>
+            <?php endif; ?>
         </nav>
     </div>
 </header>
@@ -44,8 +56,8 @@ function page_footer(): void
     <?php
 }
 
-/** Petite fiche de jeu réutilisée sur les pages Proposer, Voter et Résultats. */
-function game_media(array $game): void
+/** Petite fiche de jeu réutilisée sur toutes les pages (liste perso, pot commun, vote). */
+function game_media(array $game, ?callable $footer = null): void
 {
     ?>
     <?php if ($game['image_url'] !== ''): ?>
@@ -62,8 +74,9 @@ function game_media(array $game): void
         <p class="links">
             <?php if ($game['video_url'] !== ''): ?><a href="<?= e($game['video_url']) ?>" target="_blank" rel="noopener">▶ Vidéo</a><?php endif; ?>
             <?php if ($game['store_url'] !== ''): ?><a href="<?= e($game['store_url']) ?>" target="_blank" rel="noopener">🔗 Fiche</a><?php endif; ?>
-            <span class="muted">proposé par <?= e($game['proposed_by']) ?></span>
+            <?php if (isset($game['proposed_by'])): ?><span class="muted">proposé par <?= e($game['proposed_by']) ?></span><?php endif; ?>
         </p>
+        <?php if ($footer) { $footer(); } ?>
     </div>
     <?php
 }

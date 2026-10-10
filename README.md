@@ -1,12 +1,17 @@
 # Vote des jeux LAN
 
-Petit module PHP pour choisir les jeux d'une LAN party :
+Petit module PHP pour choisir les jeux d'une LAN party entre amis.
+
+**Principe** : chacun tient sa **liste personnelle** de jeux. Quand l'organisateur crée une **LAN** (une date),
+chacun envoie des jeux de sa liste dans le **pot commun** de cette LAN, puis tout le monde **vote**.
 
 | Page | Accès | Rôle |
 |------|-------|------|
-| `index.php` — **Proposer** | public | Nom + jeu. Vérifie les doublons, propose une description, une image et des liens automatiquement. |
-| `voter.php` — **Voter** | public | Un vote par personne (modifiable depuis le même appareil). |
-| `resultats.php` — **Résultats** | mot de passe | Classement, votants par jeu, ouverture/fermeture des phases, suppression de jeux/votes. |
+| `index.php` — **LAN** | public | Prochaine LAN (date, état) et son pot commun. |
+| `connexion.php` | public | Connexion / création de compte (pseudo, email, mot de passe). |
+| `ma-liste.php` — **Ma liste** | compte | Ajouter, modifier, supprimer ses jeux (description, image, vidéo, lien remplis automatiquement) et les proposer au pot commun d'une LAN. |
+| `voter.php` — **Voter** | compte | Un vote par personne et par LAN, modifiable tant que les votes sont ouverts. |
+| `resultats.php` — **Résultats** | mot de passe organisateur | Créer les LAN, ouvrir/fermer propositions et votes, classement, gestion des comptes. |
 
 ## Installation
 
@@ -43,21 +48,28 @@ Clés **optionnelles** dans `config.local.php` :
 
 ## Doublons
 
-- Les noms sont comparés sans majuscules, accents ni ponctuation (« Counter-Strike 2 » = « counter strike 2 ») ;
-- Deux propositions pointant vers la même fiche Steam sont refusées, même avec des noms différents (« AoE 2 » / « Age of Empires II ») ;
-- Les noms proches (fautes de frappe, éditions) déclenchent un avertissement sans bloquer.
+Les noms sont comparés sans majuscules, accents ni ponctuation (« Counter-Strike 2 » = « counter strike 2 »),
+et deux jeux pointant vers la même fiche Steam sont considérés comme identiques (« AoE 2 » / « Age of Empires II »).
 
-## Un vote par personne
+- **Dans sa liste** : on ne peut pas ajouter deux fois le même jeu ; un nom proche affiche un avertissement.
+- **Dans le pot commun** : si le jeu a déjà été proposé pour cette LAN, la proposition est refusée et on voit qui l'a proposé.
+  Le jeu reste dans la liste perso, et la liste affiche « Déjà proposé par X ».
 
-Chaque vote est lié au nom (sans tenir compte des majuscules/accents) **et** à un cookie du navigateur :
+## Liste perso et pot commun
 
-- un même nom ne peut voter qu'une fois ; seul le navigateur d'origine peut modifier ce vote ;
-- un navigateur qui a déjà voté ne peut pas revoter sous un autre nom.
+- Le pot commun garde une copie du jeu : supprimer un jeu de sa liste ne le retire pas d'une LAN.
+- Modifier la description ou les liens d'un jeu de sa liste met aussi à jour sa fiche dans les LAN encore ouvertes aux propositions.
+- Tant que les propositions sont ouvertes, chacun peut retirer un jeu qu'il a proposé (les votes pour ce jeu sont alors supprimés).
 
-C'est suffisant entre amis, mais ce n'est pas un système d'authentification : en cas de souci, l'administrateur peut supprimer un vote depuis la page Résultats.
+## Comptes
 
-## Déroulement conseillé
+Volontairement simples, c'est pour des amis : pseudo + email + mot de passe (4 caractères minimum), sans vérification d'email.
+On reste connecté sur l'appareil (cookie d'un an). Mot de passe oublié : l'organisateur en génère un nouveau depuis la page Résultats.
+Chacun peut changer son mot de passe dans « Ma liste › Mon compte ».
 
-1. Phase de propositions (propositions et votes ouverts par défaut) ;
-2. Sur la page Résultats, fermer les propositions quand la liste est complète ;
-3. Fermer les votes à la date prévue et consulter le classement.
+## Déroulement
+
+1. Chacun crée son compte et remplit sa liste (à tout moment, même sans LAN prévue).
+2. L'organisateur crée une LAN sur la page Résultats (date + nom facultatif) : propositions et votes sont ouverts.
+3. Chacun propose des jeux de sa liste, puis vote.
+4. L'organisateur ferme les propositions puis les votes et consulte le classement.

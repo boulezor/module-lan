@@ -1,23 +1,24 @@
-// Confirmation des actions destructrices (page Résultats)
+// Confirmation des actions destructrices
 document.querySelectorAll('form[data-confirm]').forEach((form) => {
     form.addEventListener('submit', (event) => {
         if (!confirm(form.dataset.confirm)) event.preventDefault();
     });
 });
 
-// Recherche automatique sur la page Proposer
+// Recherche automatique dans le formulaire « Ma liste »
 (() => {
-    const form = document.getElementById('propose-form');
+    const form = document.getElementById('game-form');
     if (!form) return;
 
     const $ = (id) => document.getElementById(id);
+    const editing = form.dataset.mode === 'edit';
     const title = $('title');
     const status = $('lookup-status');
     const submit = $('submit-btn');
     let controller = null;
-    let lastQuery = '';
+    let lastQuery = editing ? title.value.trim() : '';
 
-    const escapeHtml = (s) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const setStatus = (type, html) => { status.innerHTML = html ? `<div class="alert alert-${type}">${html}</div>` : ''; };
 
     function fill(s) {
@@ -46,32 +47,31 @@ document.querySelectorAll('form[data-confirm]').forEach((form) => {
         submit.disabled = true;
 
         try {
-            const res = await fetch('api/lookup.php?q=' + encodeURIComponent(q), { signal: controller.signal });
-            const data = await res.json();
-            if (data.error) { setStatus('warn', escapeHtml(data.error)); return; }
+            const url = 'api/lookup.php?q=' + encodeURIComponent(q) + '&exclude=' + encodeURIComponent($('game-id').value);
+            const data = await (await fetch(url, { signal: controller.signal })).json();
+            if (data.error) { setStatus('warn', escapeHtml(data.error)); submit.disabled = false; return; }
 
-            if (data.duplicate) {
-                fill({});
-                setStatus('error', `« ${escapeHtml(data.duplicate.title)} » a déjà été proposé par ${escapeHtml(data.duplicate.proposed_by)}. Tu pourras voter pour lui !`);
+            if (data.in_list) {
+                setStatus('error', `« ${escapeHtml(data.in_list.title)} » est déjà dans ta liste.`);
                 return; // le bouton reste désactivé
             }
 
             const s = data.suggestion;
             fill(s);
             const messages = [];
-            if (s.source) {
-                messages.push(`Infos trouvées via ${escapeHtml(s.source)}. Vérifie et modifie si besoin.`);
-            } else {
-                messages.push('Aucune info trouvée automatiquement : complète la description toi-même (un lien de recherche YouTube a été ajouté).');
-            }
+            messages.push(s.source
+                ? `Infos trouvées via ${escapeHtml(s.source)}. Vérifie et modifie si besoin.`
+                : 'Aucune info trouvée automatiquement : complète la description toi-même (un lien de recherche YouTube a été ajouté).');
             if (s.title && s.title.toLowerCase() !== q.toLowerCase()) {
                 messages.push(`Nom officiel : <strong>${escapeHtml(s.title)}</strong> <button type="button" class="btn-link" id="use-official">utiliser ce nom</button>`);
             }
-            if (data.similar.length) {
-                const list = data.similar.map((g) => `« ${escapeHtml(g.title)} » (${escapeHtml(g.proposed_by)})`).join(', ');
-                messages.push(`⚠️ Jeu(x) au nom proche déjà proposé(s) : ${list}. Vérifie que ce n’est pas le même !`);
+            for (const p of data.proposed) {
+                messages.push(`ℹ️ Déjà dans le pot commun de « ${escapeHtml(p.lan)} » (proposé par ${escapeHtml(p.proposed_by)}). Tu peux quand même le garder dans ta liste.`);
             }
-            setStatus(data.similar.length ? 'warn' : 'success', messages.join('<br>'));
+            if (data.similar.length) {
+                messages.push(`⚠️ Nom proche déjà dans ta liste : ${data.similar.map((g) => `« ${escapeHtml(g.title)} »`).join(', ')}.`);
+            }
+            setStatus(data.similar.length || !s.source ? 'warn' : 'success', messages.join('<br>'));
             $('use-official')?.addEventListener('click', () => { title.value = s.title; lastQuery = s.title; });
             submit.disabled = false;
         } catch (err) {
@@ -82,10 +82,10 @@ document.querySelectorAll('form[data-confirm]').forEach((form) => {
     }
 
     $('lookup-btn').addEventListener('click', () => { lastQuery = ''; lookup(); });
-    title.addEventListener('change', lookup);
+    // En modification, on ne relance pas la recherche toute seule (ça écraserait la description)
+    if (!editing) title.addEventListener('change', lookup);
     title.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') { e.preventDefault(); lookup(); }
     });
-    // Nouveau nom tapé : on réactive l'envoi (la vérification serveur reste la référence)
     title.addEventListener('input', () => { if (title.value.trim() !== lastQuery) submit.disabled = false; });
 })();

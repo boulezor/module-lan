@@ -126,26 +126,22 @@ function post_string(string $key): string
     return is_string($value) ? $value : '';
 }
 
-/** Mémorise le prénom pour pré-remplir les formulaires suivants. */
-function remember_name(string $name): void
+/** Date de LAN lisible : « samedi 14 novembre 2026 ». */
+function format_date(string $isoDate): string
 {
-    setcookie('lan_name', $name, ['expires' => time() + 31536000, 'path' => '/', 'samesite' => 'Lax', 'httponly' => true]);
-    $_COOKIE['lan_name'] = $name;
-}
-
-function remembered_name(): string
-{
-    return is_string($_COOKIE['lan_name'] ?? null) ? clean_line($_COOKIE['lan_name'], 40) : '';
-}
-
-/** Identifiant anonyme du navigateur, utilisé pour « un vote par personne ». */
-function voter_token(): string
-{
-    $token = $_COOKIE['lan_voter'] ?? '';
-    if (!is_string($token) || !preg_match('/^[a-f0-9]{32}$/', $token)) {
-        $token = bin2hex(random_bytes(16));
-        setcookie('lan_voter', $token, ['expires' => time() + 31536000, 'path' => '/', 'samesite' => 'Lax', 'httponly' => true]);
-        $_COOKIE['lan_voter'] = $token;
+    $ts = strtotime($isoDate);
+    if ($ts === false) {
+        return $isoDate;
     }
-    return $token;
+    if (class_exists('IntlDateFormatter')) {
+        $formatter = new IntlDateFormatter('fr_BE', IntlDateFormatter::FULL, IntlDateFormatter::NONE, config('timezone'));
+        return (string) $formatter->format($ts);
+    }
+    return date('d/m/Y', $ts);
+}
+
+/** URL de retour après connexion : uniquement une page locale du module. */
+function safe_next(string $next): string
+{
+    return preg_match('/^[a-z-]+\.php(\?[\w=&%-]*)?$/', $next) ? $next : 'ma-liste.php';
 }

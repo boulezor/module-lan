@@ -31,7 +31,7 @@ h3 { margin: 0 0 6px; font-size: 1.1rem; }
 .site-header { background: var(--panel); border-bottom: 1px solid var(--border); }
 .site-header .wrap { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding-top: 12px; padding-bottom: 12px; }
 .brand { color: var(--text); font-weight: 700; text-decoration: none; }
-nav { display: flex; gap: 4px; flex-wrap: wrap; }
+nav { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
 nav a { color: var(--muted); text-decoration: none; padding: 6px 12px; border-radius: 8px; }
 nav a:hover { color: var(--text); background: var(--panel-2); }
 nav a.active { color: #fff; background: var(--accent); }
@@ -117,4 +117,42 @@ form.inline { display: inline; }
     .selectable input[type=radio] { position: absolute; left: 14px; top: 14px; }
     .suggestion { flex-direction: column; }
     .suggestion img { max-width: 100%; }
+}
+
+/* --- Comptes, liste perso, LAN --- */
+input[type=email], input[type=date], select {
+    display: block; width: 100%; margin-top: 6px; padding: 10px 12px;
+    background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 8px;
+    font: inherit; font-weight: 400; color-scheme: dark;
+}
+.form-title { margin: 0 0 16px; font-size: 1.2rem; }
+.form-actions { display: flex; align-items: center; gap: 16px; }
+.two-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.two-cols .card { margin: 0; }
+a.button { display: inline-block; text-decoration: none; border-radius: 8px; padding: 10px 18px; background: var(--accent); color: #fff; font-weight: 600; }
+a.button.btn-secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); }
+.btn-small { padding: 4px 10px; font-size: .85rem; }
+.cta-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 8px; }
+.lan-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--muted); }
+.badge { display: inline-block; font-size: .8rem; padding: 2px 10px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--border); color: var(--muted); }
+.badge-ok { border-color: var(--accent-2); color: var(--accent-2); }
+.lan-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 20px; }
+.lan-tabs a { padding: 4px 12px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); text-decoration: none; font-size: .9rem; }
+.lan-tabs a.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.game-actions { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); display: grid; gap: 6px; font-size: .9rem; }
+.lan-status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.user-menu { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; font-size: .9rem; }
+details.card summary { cursor: pointer; font-weight: 600; }
+details.card[open] summary { margin-bottom: 14px; }
+.account { margin-top: 40px; }
+.create-lan { display: grid; grid-template-columns: 1fr 2fr auto; gap: 12px; align-items: end; }
+.create-lan label { margin: 0; }
+.users { width: 100%; border-collapse: collapse; background: var(--panel); border-radius: var(--radius); overflow: hidden; }
+.users th, .users td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+.users .actions { text-align: right; white-space: nowrap; }
+.stats div { min-width: 0; }
+@media (max-width: 600px) {
+    .create-lan { grid-template-columns: 1fr; }
+    .users .muted { display: none; }
+    .users .actions { white-space: normal; }
 }

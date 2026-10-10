@@ -21,91 +21,173 @@ function db(): PDO
     $pdo->exec('PRAGMA busy_timeout = 5000');
 
     $pdo->exec(<<<SQL
-        CREATE TABLE IF NOT EXISTS games (
+        CREATE TABLE IF NOT EXISTS users (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            name           TEXT NOT NULL,
+            email          TEXT NOT NULL UNIQUE,
+            password_hash  TEXT NOT NULL,
+            remember_token TEXT,
+            created_at     TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        -- Liste personnelle de chaque joueur
+        CREATE TABLE IF NOT EXISTS list_games (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
             title       TEXT NOT NULL,
-            normalized  TEXT NOT NULL UNIQUE,
-            steam_appid INTEGER UNIQUE,
+            normalized  TEXT NOT NULL,
+            steam_appid INTEGER,
             description TEXT NOT NULL DEFAULT '',
             tags        TEXT NOT NULL DEFAULT '',
             image_url   TEXT NOT NULL DEFAULT '',
             video_url   TEXT NOT NULL DEFAULT '',
             store_url   TEXT NOT NULL DEFAULT '',
-            proposed_by TEXT NOT NULL,
-            created_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            created_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (user_id, normalized)
         );
-        CREATE TABLE IF NOT EXISTS votes (
-            id               INTEGER PRIMARY KEY AUTOINCREMENT,
-            game_id          INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
-            voter_name       TEXT NOT NULL,
-            voter_normalized TEXT NOT NULL UNIQUE,
-            token            TEXT NOT NULL,
-            created_at       TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            updated_at       TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        CREATE TABLE IF NOT EXISTS lans (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            title          TEXT NOT NULL,
+            lan_date       TEXT NOT NULL,
+            proposals_open INTEGER NOT NULL DEFAULT 1,
+            votes_open     INTEGER NOT NULL DEFAULT 1,
+            created_at     TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
-        CREATE TABLE IF NOT EXISTS settings (
-            key   TEXT PRIMARY KEY,
-            value TEXT NOT NULL
+        -- Pot commun d'une LAN : copie du jeu au moment où il est proposé
+        CREATE TABLE IF NOT EXISTS proposals (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            lan_id       INTEGER NOT NULL REFERENCES lans(id) ON DELETE CASCADE,
+            user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            list_game_id INTEGER REFERENCES list_games(id) ON DELETE SET NULL,
+            title        TEXT NOT NULL,
+            normalized   TEXT NOT NULL,
+            steam_appid  INTEGER,
+            description  TEXT NOT NULL DEFAULT '',
+            tags         TEXT NOT NULL DEFAULT '',
+            image_url    TEXT NOT NULL DEFAULT '',
+            video_url    TEXT NOT NULL DEFAULT '',
+            store_url    TEXT NOT NULL DEFAULT '',
+            created_at   TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (lan_id, normalized),
+            UNIQUE (lan_id, steam_appid)
+        );
+        CREATE TABLE IF NOT EXISTS lan_votes (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            lan_id      INTEGER NOT NULL REFERENCES lans(id) ON DELETE CASCADE,
+            proposal_id INTEGER NOT NULL REFERENCES proposals(id) ON DELETE CASCADE,
+            user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            created_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (lan_id, user_id)
         );
         SQL);
 
     return $pdo;
 }
 
-function setting(string $key, string $default = ''): string
+function db_row(string $sql, array $params = []): ?array
 {
-    $stmt = db()->prepare('SELECT value FROM settings WHERE key = ?');
-    $stmt->execute([$key]);
-    $value = $stmt->fetchColumn();
-    return $value === false ? $default : (string) $value;
-}
-
-function set_setting(string $key, string $value): void
-{
-    db()->prepare('INSERT INTO settings (key, value) VALUES (?, ?)
-                   ON CONFLICT(key) DO UPDATE SET value = excluded.value')
-        ->execute([$key, $value]);
-}
-
-function proposals_open(): bool
-{
-    return setting('proposals_open', '1') === '1';
-}
-
-function votes_open(): bool
-{
-    return setting('votes_open', '1') === '1';
+    $stmt = db()->prepare($sql);
+    $stmt->execute($params);
+    return $stmt->fetch() ?: null;
 }
 
 /** @return list<array<string, mixed>> */
-function all_games(): array
+function db_rows(string $sql, array $params = []): array
 {
-    return db()->query('SELECT * FROM games ORDER BY title COLLATE NOCASE')->fetchAll();
+    $stmt = db()->prepare($sql);
+    $stmt->execute($params);
+    return $stmt->fetchAll();
 }
 
-/**
- * Jeu déjà enregistré sous le même nom (normalisé) ou la même fiche Steam.
- */
-function find_duplicate(string $title, ?int $steamAppId): ?array
+function db_exec(string $sql, array $params = []): void
 {
-    $stmt = db()->prepare('SELECT * FROM games WHERE normalized = ? OR (steam_appid IS NOT NULL AND steam_appid = ?) LIMIT 1');
-    $stmt->execute([normalize_key($title), $steamAppId]);
-    return $stmt->fetch() ?: null;
+    db()->prepare($sql)->execute($params);
+}
+
+// --- LAN ---------------------------------------------------------------
+
+function find_lan(int $id): ?array
+{
+    return db_row('SELECT * FROM lans WHERE id = ?', [$id]);
+}
+
+/** @return list<array<string, mixed>> Prochaines LAN d'abord, puis les passées (plus récentes d'abord). */
+function all_lans(): array
+{
+    return db_rows("SELECT * FROM lans
+                    ORDER BY lan_date < date('now', 'localtime'),
+                             CASE WHEN lan_date >= date('now', 'localtime') THEN lan_date END ASC,
+                             lan_date DESC");
+}
+
+/** @return list<array<string, mixed>> */
+function lans_with_open(string $phase): array
+{
+    $column = $phase === 'votes' ? 'votes_open' : 'proposals_open';
+    return array_values(array_filter(all_lans(), fn($lan) => (int) $lan[$column] === 1));
+}
+
+/** LAN demandée dans l'URL, sinon la prochaine à venir (ou la plus récente). */
+function selected_lan(array $candidates): ?array
+{
+    $id = (int) ($_GET['lan'] ?? 0);
+    foreach ($candidates as $lan) {
+        if ((int) $lan['id'] === $id) {
+            return $lan;
+        }
+    }
+    return $candidates[0] ?? null;
+}
+
+/** @return list<array<string, mixed>> Pot commun d'une LAN, avec le nom de la personne qui a proposé. */
+function lan_proposals(int $lanId): array
+{
+    return db_rows('SELECT p.*, u.name AS proposed_by FROM proposals p JOIN users u ON u.id = p.user_id
+                    WHERE p.lan_id = ? ORDER BY p.title COLLATE NOCASE', [$lanId]);
+}
+
+/** Jeu déjà dans le pot commun d'une LAN (même nom normalisé ou même fiche Steam). */
+function find_lan_duplicate(int $lanId, string $title, ?int $steamAppId): ?array
+{
+    return db_row('SELECT p.*, u.name AS proposed_by FROM proposals p JOIN users u ON u.id = p.user_id
+                   WHERE p.lan_id = ? AND (p.normalized = ? OR (p.steam_appid IS NOT NULL AND p.steam_appid = ?))
+                   LIMIT 1', [$lanId, normalize_key($title), $steamAppId]);
+}
+
+// --- Liste personnelle -------------------------------------------------
+
+/** @return list<array<string, mixed>> */
+function user_games(int $userId): array
+{
+    return db_rows('SELECT * FROM list_games WHERE user_id = ? ORDER BY title COLLATE NOCASE', [$userId]);
+}
+
+function find_user_game(int $userId, int $id): ?array
+{
+    return db_row('SELECT * FROM list_games WHERE user_id = ? AND id = ?', [$userId, $id]);
+}
+
+function find_list_duplicate(int $userId, string $title, ?int $steamAppId, int $excludeId = 0): ?array
+{
+    return db_row('SELECT * FROM list_games
+                   WHERE user_id = ? AND id != ? AND (normalized = ? OR (steam_appid IS NOT NULL AND steam_appid = ?))
+                   LIMIT 1', [$userId, $excludeId, normalize_key($title), $steamAppId]);
 }
 
 /**
  * Jeux dont le nom ressemble fortement (fautes de frappe, sous-titres…).
  *
+ * @param list<array<string, mixed>> $games
  * @return list<array<string, mixed>>
  */
-function find_similar(string $title, int $max = 3): array
+function find_similar(array $games, string $title, int $max = 3): array
 {
     $key = normalize_key($title);
     if (strlen($key) < 3) {
         return [];
     }
     $scored = [];
-    foreach (all_games() as $game) {
+    foreach ($games as $game) {
         $score = similarity($key, $game['normalized']);
         if ($score >= 0.75 && $game['normalized'] !== $key) {
             $scored[] = [$score, $game];
@@ -113,4 +195,32 @@ function find_similar(string $title, int $max = 3): array
     }
     usort($scored, fn($a, $b) => $b[0] <=> $a[0]);
     return array_map(fn($s) => $s[1], array_slice($scored, 0, $max));
+}
+
+/**
+ * Envoie un jeu de la liste personnelle dans le pot commun d'une LAN.
+ *
+ * @return array{0: bool, 1: string} [succès, message]
+ */
+function propose_to_lan(array $user, array $game, array $lan): array
+{
+    if (!(int) $lan['proposals_open']) {
+        return [false, "Les propositions sont fermées pour « {$lan['title']} »."];
+    }
+    $steamAppId = $game['steam_appid'] !== null ? (int) $game['steam_appid'] : null;
+    if ($dup = find_lan_duplicate((int) $lan['id'], $game['title'], $steamAppId)) {
+        $who = (int) $dup['user_id'] === (int) $user['id'] ? 'toi' : $dup['proposed_by'];
+        return [false, "« {$dup['title']} » est déjà dans le pot commun de « {$lan['title']} » (proposé par {$who})."];
+    }
+    try {
+        db_exec('INSERT INTO proposals (lan_id, user_id, list_game_id, title, normalized, steam_appid,
+                                        description, tags, image_url, video_url, store_url)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
+            $lan['id'], $user['id'], $game['id'], $game['title'], $game['normalized'], $steamAppId,
+            $game['description'], $game['tags'], $game['image_url'], $game['video_url'], $game['store_url'],
+        ]);
+    } catch (PDOException) {
+        return [false, "« {$game['title']} » vient d'être proposé par quelqu'un d'autre."];
+    }
+    return [true, "« {$game['title']} » ajouté au pot commun de « {$lan['title']} »."];
 }

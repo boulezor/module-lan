@@ -12,6 +12,8 @@ session_start();
 
 require __DIR__ . '/helpers.php';
 require __DIR__ . '/db.php';
+require __DIR__ . '/auth.php';
+require __DIR__ . '/games.php';
 require __DIR__ . '/lookup.php';
 require __DIR__ . '/layout.php';
 

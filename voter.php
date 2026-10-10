@@ -2,93 +2,76 @@
 declare(strict_types=1);
 require __DIR__ . '/inc/bootstrap.php';
 
-$token = voter_token();
+$user = require_login();
+$lans = lans_with_open('votes');
+$lan = selected_lan($lans);
 
-/** Vote déjà enregistré depuis ce navigateur */
-function my_vote(string $token): ?array
-{
-    $stmt = db()->prepare('SELECT v.*, g.title FROM votes v JOIN games g ON g.id = v.game_id WHERE v.token = ? LIMIT 1');
-    $stmt->execute([$token]);
-    return $stmt->fetch() ?: null;
-}
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && votes_open()) {
-    $name = clean_line(post_string('name'), 40);
-    $gameId = (int) post_string('game_id');
-    $key = normalize_key($name);
-
-    $stmt = db()->prepare('SELECT * FROM games WHERE id = ?');
-    $stmt->execute([$gameId]);
-    $game = $stmt->fetch();
-
-    $stmt = db()->prepare('SELECT * FROM votes WHERE voter_normalized = ?');
-    $stmt->execute([$key]);
-    $existing = $stmt->fetch();
-    $mine = my_vote($token);
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $lan = find_lan((int) post_string('lan_id'));
+    $proposal = $lan ? db_row('SELECT * FROM proposals WHERE id = ? AND lan_id = ?', [(int) post_string('proposal_id'), $lan['id']]) : null;
 
     if (!csrf_valid()) {
         flash('error', 'Session expirée, merci de réessayer.');
-    } elseif ($key === '') {
-        flash('error', 'Indique ton nom.');
-    } elseif (!$game) {
+    } elseif (!$lan || !(int) $lan['votes_open']) {
+        flash('error', 'Les votes sont fermés pour cette LAN.');
+    } elseif (!$proposal) {
         flash('error', 'Choisis un jeu dans la liste.');
-    } elseif ($existing && !hash_equals($existing['token'], $token)) {
-        flash('error', "« {$existing['voter_name']} » a déjà voté. Un seul vote par personne !");
-    } elseif ($mine && $mine['voter_normalized'] !== $key) {
-        flash('error', "Ce navigateur a déjà voté au nom de « {$mine['voter_name']} ».");
     } else {
-        if ($existing) {
-            db()->prepare('UPDATE votes SET game_id = ?, voter_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-                ->execute([$gameId, $name, $existing['id']]);
-            flash('success', "Vote modifié : tu votes maintenant pour « {$game['title']} ».");
-        } else {
-            db()->prepare('INSERT INTO votes (game_id, voter_name, voter_normalized, token) VALUES (?, ?, ?, ?)')
-                ->execute([$gameId, $name, $key, $token]);
-            flash('success', "Merci {$name}, ton vote pour « {$game['title']} » est enregistré !");
-        }
-        remember_name($name);
-        redirect('voter.php');
+        // Un vote par personne et par LAN : un nouveau choix remplace l'ancien
+        db_exec('INSERT INTO lan_votes (lan_id, proposal_id, user_id) VALUES (?, ?, ?)
+                 ON CONFLICT (lan_id, user_id) DO UPDATE SET proposal_id = excluded.proposal_id, updated_at = CURRENT_TIMESTAMP',
+            [$lan['id'], $proposal['id'], $user['id']]);
+        flash('success', "C'est noté : tu votes pour « {$proposal['title']} ».");
     }
+    redirect('voter.php' . ($lan ? '?lan=' . (int) $lan['id'] : ''));
 }
 
-$mine = my_vote($token);
-$games = all_games();
+$pot = $lan ? lan_proposals((int) $lan['id']) : [];
+$myVote = $lan ? db_row('SELECT v.*, p.title FROM lan_votes v JOIN proposals p ON p.id = v.proposal_id
+                         WHERE v.lan_id = ? AND v.user_id = ?', [$lan['id'], $user['id']]) : null;
+
 page_header('Voter', 'voter');
 ?>
-<h1>Voter pour un jeu</h1>
-
-<?php if (!votes_open()): ?>
-    <div class="alert alert-info">Les votes sont fermés.<?= $mine ? ' Tu as voté pour « ' . e($mine['title']) . ' ».' : '' ?></div>
-<?php elseif (!$games): ?>
-    <div class="alert alert-info">Aucun jeu proposé pour l'instant. <a href="index.php">Propose le premier !</a></div>
+<?php if (!$lan): ?>
+    <h1>Voter</h1>
+    <div class="alert alert-info">Aucun vote en cours pour l'instant.</div>
 <?php else: ?>
-    <p class="muted">Un seul vote par personne. Tu peux le modifier depuis ce même appareil tant que les votes sont ouverts.</p>
-    <?php if ($mine): ?>
-        <div class="alert alert-info">Tu as voté pour <strong><?= e($mine['title']) ?></strong>. Choisis un autre jeu pour changer d'avis.</div>
+    <?php if (count($lans) > 1): ?>
+        <nav class="lan-tabs">
+            <?php foreach ($lans as $item): ?>
+                <a href="voter.php?lan=<?= (int) $item['id'] ?>"<?= $item['id'] === $lan['id'] ? ' class="active"' : '' ?>><?= e($item['title']) ?></a>
+            <?php endforeach; ?>
+        </nav>
     <?php endif; ?>
 
-    <form method="post">
-        <?= csrf_field() ?>
-        <label class="card">Ton nom
-            <input type="text" name="name" maxlength="40" required
-                   value="<?= e($mine['voter_name'] ?? remembered_name()) ?>"<?= $mine ? ' readonly' : '' ?>>
-        </label>
+    <h1>Voter · <?= e($lan['title']) ?></h1>
+    <p class="muted">📅 <?= e(format_date($lan['lan_date'])) ?> — un seul vote par personne, modifiable tant que les votes sont ouverts.</p>
 
-        <ul class="game-list">
-            <?php foreach ($games as $game): ?>
-                <li>
-                    <label class="game selectable">
-                        <input type="radio" name="game_id" value="<?= (int) $game['id'] ?>" required
-                            <?= $mine && (int) $mine['game_id'] === (int) $game['id'] ? 'checked' : '' ?>>
-                        <?php game_media($game); ?>
-                    </label>
-                </li>
-            <?php endforeach; ?>
-        </ul>
+    <?php if (!$pot): ?>
+        <div class="alert alert-info">Le pot commun est vide. <a href="ma-liste.php">Propose un jeu de ta liste !</a></div>
+    <?php else: ?>
+        <?php if ($myVote): ?>
+            <div class="alert alert-info">Tu as voté pour <strong><?= e($myVote['title']) ?></strong>. Choisis un autre jeu pour changer d'avis.</div>
+        <?php endif; ?>
 
-        <div class="sticky-submit">
-            <button type="submit"><?= $mine ? 'Modifier mon vote' : 'Voter' ?></button>
-        </div>
-    </form>
+        <form method="post">
+            <?= csrf_field() ?>
+            <input type="hidden" name="lan_id" value="<?= (int) $lan['id'] ?>">
+            <ul class="game-list">
+                <?php foreach ($pot as $game): ?>
+                    <li>
+                        <label class="game selectable">
+                            <input type="radio" name="proposal_id" value="<?= (int) $game['id'] ?>" required
+                                <?= $myVote && (int) $myVote['proposal_id'] === (int) $game['id'] ? 'checked' : '' ?>>
+                            <?php game_media($game); ?>
+                        </label>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+            <div class="sticky-submit">
+                <button type="submit"><?= $myVote ? 'Modifier mon vote' : 'Voter' ?></button>
+            </div>
+        </form>
+    <?php endif; ?>
 <?php endif; ?>
 <?php page_footer();
