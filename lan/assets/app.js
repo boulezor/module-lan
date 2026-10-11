@@ -118,15 +118,21 @@ document.querySelectorAll('#lists-form [data-check]').forEach((button) => {
 });
 
 // Descriptions longues : « Voir plus » seulement si le texte dépasse 6 lignes
-document.querySelectorAll('.desc-wrap').forEach((wrap) => {
+const checkClamps = () => document.querySelectorAll('.desc-wrap').forEach((wrap) => {
     const desc = wrap.querySelector('.desc');
-    const button = wrap.querySelector('.more');
-    if (desc.scrollHeight > desc.clientHeight + 2) button.hidden = false;
-    button.addEventListener('click', (event) => {
-        event.preventDefault();
-        const open = desc.classList.toggle('expanded');
-        button.textContent = open ? 'Voir moins ▴' : 'Voir plus ▾';
-    });
+    if (desc.classList.contains('expanded')) return;
+    wrap.querySelector('.more').hidden = desc.scrollHeight <= desc.clientHeight + 2;
+});
+checkClamps();
+window.addEventListener('load', checkClamps);   // après images et polices
+window.addEventListener('resize', checkClamps);
+document.addEventListener('click', (event) => {
+    const button = event.target.closest('.more');
+    if (!button) return;
+    event.preventDefault();
+    const desc = button.closest('.desc-wrap').querySelector('.desc');
+    const open = desc.classList.toggle('expanded');
+    button.textContent = open ? 'Voir moins ▴' : 'Voir plus ▾';
 });
 
 // Admin : régénération des fiches du pot commun, une requête par jeu avec barre de progression
