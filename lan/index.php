@@ -23,7 +23,7 @@ page_header('LAN', 'accueil');
 
     <h1><?= e($lan['title']) ?></h1>
     <p class="lan-meta">
-        📅 <?= e(format_date($lan['lan_date'])) ?>
+        📅 <?= e(format_lan_dates($lan)) ?>
         <span class="badge<?= (int) $lan['proposals_open'] ? ' badge-ok' : '' ?>">Propositions <?= (int) $lan['proposals_open'] ? 'ouvertes' : 'fermées' ?></span>
         <span class="badge<?= (int) $lan['votes_open'] ? ' badge-ok' : '' ?>">Votes <?= (int) $lan['votes_open'] ? 'ouverts' : 'fermés' ?></span>
     </p>

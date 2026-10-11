@@ -29,18 +29,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $values = [$game['title'], normalize_key($game['title']), $game['steam_appid'], $game['description'],
-                       $game['tags'], $game['image_url'], $game['video_url'], $game['store_url'], $game['comment']];
+                       $game['tags'], $game['image_url'], $game['video_url'], $game['store_url'], $game['comment'], $game['players']];
             if ($existing) {
                 db_exec('UPDATE list_games SET title = ?, normalized = ?, steam_appid = ?, description = ?, tags = ?,
-                         image_url = ?, video_url = ?, store_url = ?, comment = ? WHERE id = ? AND user_id = ?', [...$values, $id, $userId]);
+                         image_url = ?, video_url = ?, store_url = ?, comment = ?, players = ? WHERE id = ? AND user_id = ?', [...$values, $id, $userId]);
                 // Les fiches déjà dans un pot commun encore ouvert suivent la description, les liens et le commentaire
-                db_exec('UPDATE proposals SET description = ?, tags = ?, image_url = ?, video_url = ?, store_url = ?, comment = ?
+                db_exec('UPDATE proposals SET description = ?, tags = ?, image_url = ?, video_url = ?, store_url = ?, comment = ?, players = ?
                          WHERE list_game_id = ? AND user_id = ? AND lan_id IN (SELECT id FROM lans WHERE proposals_open = 1)',
-                    [$game['description'], $game['tags'], $game['image_url'], $game['video_url'], $game['store_url'], $game['comment'], $id, $userId]);
+                    [$game['description'], $game['tags'], $game['image_url'], $game['video_url'], $game['store_url'],
+                     $game['comment'], $game['players'], $id, $userId]);
                 flash('success', "« {$game['title']} » mis à jour.");
             } else {
-                db_exec('INSERT INTO list_games (title, normalized, steam_appid, description, tags, image_url, video_url, store_url, comment, user_id)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [...$values, $userId]);
+                db_exec('INSERT INTO list_games (title, normalized, steam_appid, description, tags, image_url, video_url, store_url, comment, players, user_id)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [...$values, $userId]);
                 flash('success', "« {$game['title']} » ajouté à ta liste.");
 
                 $lan = find_lan((int) post_string('propose_lan'));

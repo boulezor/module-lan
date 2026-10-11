@@ -89,3 +89,18 @@ document.querySelectorAll('form[data-confirm]').forEach((form) => {
     });
     title.addEventListener('input', () => { if (title.value.trim() !== lastQuery) submit.disabled = false; });
 })();
+
+// Vote : compteur « jeux notés » en direct et rappel des jeux oubliés
+(() => {
+    const form = document.getElementById('vote-form');
+    const progress = document.getElementById('vote-progress');
+    if (!form || !progress) return;
+
+    const total = Number(progress.dataset.total);
+    const update = () => {
+        const done = new Set([...form.querySelectorAll('input[type=radio]:checked')].map((i) => i.name)).size;
+        progress.innerHTML = `Jeux notés : <strong>${done}</strong> / ${total}` + (done < total ? ` — encore ${total - done} à noter` : ' ✔');
+    };
+    form.addEventListener('change', update);
+    update();
+})();

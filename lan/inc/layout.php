@@ -56,6 +56,12 @@ function page_footer(): void
     <?php
 }
 
+/** « 2 à 8 » → « 2 à 8 joueurs » (sauf si le mot y est déjà). */
+function players_label(string $players): string
+{
+    return preg_match('/joueur|player|pers/i', $players) ? $players : $players . ' joueurs';
+}
+
 /** Petite fiche de jeu réutilisée sur toutes les pages (liste perso, pot commun, vote). */
 function game_media(array $game, ?callable $footer = null): void
 {
@@ -64,7 +70,9 @@ function game_media(array $game, ?callable $footer = null): void
         <img class="game-img" src="<?= e($game['image_url']) ?>" alt="" loading="lazy">
     <?php endif; ?>
     <div class="game-body">
-        <h3><?= e($game['title']) ?></h3>
+        <h3><?= e($game['title']) ?>
+            <?php if (($game['players'] ?? '') !== ''): ?><span class="players">👥 <?= e(players_label($game['players'])) ?></span><?php endif; ?>
+        </h3>
         <?php if ($game['tags'] !== ''): ?>
             <p class="tags"><?php foreach (explode(', ', $game['tags']) as $tag): ?><span><?= e($tag) ?></span><?php endforeach; ?></p>
         <?php endif; ?>

@@ -157,3 +157,39 @@ details.card[open] summary { margin-bottom: 14px; }
     .users .actions { white-space: normal; }
 }
 .comment { margin: 0 0 8px; padding: 6px 10px; border-left: 3px solid var(--accent); background: var(--panel-2); border-radius: 0 8px 8px 0; font-size: .9rem; }
+.players { display: inline-block; vertical-align: middle; margin-left: 8px; padding: 2px 10px; border-radius: 999px; background: #00d1b222; border: 1px solid var(--accent-2); color: var(--accent-2); font-size: .8rem; font-weight: 600; white-space: nowrap; }
+
+/* --- Vote par notes --- */
+.vote-progress { margin: 0 0 12px; }
+.rating { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+.rate { margin: 0; font-weight: 500; cursor: pointer; }
+.rate input { position: absolute; opacity: 0; pointer-events: none; }
+.rate span { display: inline-block; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg); font-size: .9rem; user-select: none; }
+.rate small { opacity: .7; }
+.rate:hover span { border-color: var(--muted); }
+.rate input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.rate-pos input:checked + span { background: #00d1b2; border-color: #00d1b2; color: #0f1220; }
+.rate-zero input:checked + span { background: var(--muted); border-color: var(--muted); color: #0f1220; }
+.rate-neg input:checked + span { background: var(--danger); border-color: var(--danger); color: #fff; }
+.rate-none span { border-style: dashed; color: var(--muted); }
+.rate-none input:checked + span { background: var(--panel-2); color: var(--text); }
+.score { font-weight: 700; }
+.score-pos { color: var(--accent-2); }
+.score-neg { color: var(--danger); }
+.bar span.neg { background: var(--danger); }
+.breakdown { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; font-size: .85rem; color: var(--muted); }
+.datetime-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.datetime-row label { margin: 0; }
+.options-table input[type=text], .options-table input[type=number] { margin: 0; }
+.options-table input[type=number] { width: 90px; }
+input[type=number], input[type=datetime-local] {
+    display: block; width: 100%; margin-top: 6px; padding: 10px 12px;
+    background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 8px;
+    font: inherit; font-weight: 400; color-scheme: dark;
+}
+@media (max-width: 600px) {
+    .datetime-row { grid-template-columns: 1fr; }
+}
+.inline-check { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-weight: 400; }
+.rank-head .players { font-size: .75rem; }
+details.small summary { cursor: pointer; font-size: .85rem; margin-bottom: 6px; }

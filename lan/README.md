@@ -2,16 +2,18 @@
 
 Petit module PHP pour choisir les jeux d'une LAN party entre amis.
 
-**Principe** : chacun tient sa **liste personnelle** de jeux. Quand l'organisateur crée une **LAN** (une date),
-chacun envoie des jeux de sa liste dans le **pot commun** de cette LAN, puis tout le monde **vote**.
+**Principe** : chacun tient sa **liste personnelle** de jeux (avec nombre de joueurs et commentaire facultatifs).
+Quand l'organisateur crée une **LAN** (début et fin, ex. du vendredi 18h au dimanche 18h), chacun envoie des jeux
+de sa liste dans le **pot commun**. Quand l'organisateur ouvre les votes, chacun **note tous les jeux** du pot
+(« Je veux » +5 … « Je déteste » -5) et le classement additionne les points.
 
 | Page | Accès | Rôle |
 |------|-------|------|
 | `index.php` — **LAN** | public | Prochaine LAN (date, état) et son pot commun. |
 | `connexion.php` | public | Connexion / création de compte (pseudo, email, mot de passe). |
 | `ma-liste.php` — **Ma liste** | compte | Ajouter, modifier, supprimer ses jeux (description, image, vidéo, lien remplis automatiquement) et les proposer au pot commun d'une LAN. |
-| `voter.php` — **Voter** | compte | Un vote par personne et par LAN, modifiable tant que les votes sont ouverts. |
-| `resultats.php` — **Résultats** | mot de passe organisateur | Créer les LAN, ouvrir/fermer propositions et votes, classement, gestion des comptes. |
+| `voter.php` — **Voter** | compte | Un vote par personne et par LAN : une note pour chaque jeu du pot commun, modifiable tant que les votes sont ouverts. |
+| `resultats.php` — **Résultats** | mot de passe organisateur | Créer / modifier les LAN, ouvrir/fermer propositions et votes, classement par points, options de vote, comptes. |
 
 ## Installation
 
@@ -60,9 +62,19 @@ Volontairement simples, c'est pour des amis : pseudo + email + mot de passe (4 c
 On reste connecté sur l'appareil (cookie d'un an). Mot de passe oublié : l'organisateur en génère un nouveau depuis la page Résultats.
 Chacun peut changer son mot de passe dans « Ma liste › Mon compte ».
 
+## Vote
+
+- Les votes sont **fermés à la création** d'une LAN : l'organisateur les ouvre (puis les ferme) depuis la page Résultats.
+- Chaque personne note **tous** les jeux du pot commun avec une option ; le vote n'est accepté que s'il est complet.
+- En revenant sur la page, on voit « Ton vote a déjà été soumis » : on peut le modifier, pas en créer un second.
+  Si un jeu est ajouté au pot après coup, la page demande de le noter pour compléter le vote.
+- Options par défaut : Je veux (+5), J'adore (+3), J'aime bien (+1), À voir (0), J'aime pas (-3), Je déteste (-5).
+  L'organisateur peut les renommer, changer les points, en ajouter ou en supprimer ; les totaux se recalculent.
+
 ## Déroulement
 
 1. Chacun crée son compte et remplit sa liste (à tout moment, même sans LAN prévue).
-2. L'organisateur crée une LAN sur la page Résultats (date + nom facultatif) : propositions et votes sont ouverts.
-3. Chacun propose des jeux de sa liste, puis vote.
-4. L'organisateur ferme les propositions puis les votes et consulte le classement.
+2. L'organisateur crée une LAN sur la page Résultats (nom facultatif, début et fin) : les propositions sont ouvertes.
+3. Chacun propose des jeux de sa liste.
+4. L'organisateur ferme les propositions et ouvre les votes ; chacun note tous les jeux.
+5. L'organisateur ferme les votes et consulte le classement.
