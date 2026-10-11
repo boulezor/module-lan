@@ -104,3 +104,11 @@ document.querySelectorAll('form[data-confirm]').forEach((form) => {
     form.addEventListener('change', update);
     update();
 })();
+
+// Admin : tout cocher / décocher dans « Jeux de toutes les listes »
+document.querySelectorAll('#lists-form [data-check]').forEach((button) => {
+    button.addEventListener('click', () => {
+        const checked = button.dataset.check === 'all';
+        button.form.querySelectorAll('input[name="games[]"]:not(:disabled)').forEach((box) => { box.checked = checked; });
+    });
+});

@@ -252,19 +252,58 @@ function find_similar(array $games, string $title, int $max = 3): array
     return array_map(fn($s) => $s[1], array_slice($scored, 0, $max));
 }
 
+/** Proposition du pot commun qui correspond à ce jeu (même nom ou même fiche Steam). */
+function matching_proposal(array $pot, array $game): ?array
+{
+    foreach ($pot as $proposal) {
+        if ($proposal['normalized'] === $game['normalized']
+            || ($game['steam_appid'] !== null && (int) $proposal['steam_appid'] === (int) $game['steam_appid'])) {
+            return $proposal;
+        }
+    }
+    return null;
+}
+
+/**
+ * Tous les jeux de toutes les listes, regroupés quand plusieurs personnes ont le même jeu.
+ * Chaque groupe garde la fiche la plus ancienne et la liste des propriétaires.
+ *
+ * @return list<array<string, mixed>>
+ */
+function all_list_games_grouped(): array
+{
+    $groups = [];
+    foreach (db_rows('SELECT g.*, u.name AS owner FROM list_games g JOIN users u ON u.id = g.user_id
+                      ORDER BY g.created_at, g.id') as $game) {
+        foreach ($groups as &$group) {
+            if (matching_proposal([$group], $game)) {
+                $group['owners'][] = $game['owner'];
+                $group['steam_appid'] ??= $game['steam_appid'];
+                continue 2;
+            }
+        }
+        unset($group);
+        $groups[] = $game + ['owners' => [$game['owner']]];
+    }
+    unset($group);
+    usort($groups, fn($a, $b) => strcasecmp($a['title'], $b['title']));
+    return $groups;
+}
+
 /**
  * Envoie un jeu de la liste personnelle dans le pot commun d'une LAN.
+ * $force : ajout par l'organisateur, même si les propositions sont fermées.
  *
  * @return array{0: bool, 1: string} [succès, message]
  */
-function propose_to_lan(array $user, array $game, array $lan): array
+function propose_to_lan(array $user, array $game, array $lan, bool $force = false): array
 {
-    if (!(int) $lan['proposals_open']) {
+    if (!$force && !(int) $lan['proposals_open']) {
         return [false, "Les propositions sont fermées pour « {$lan['title']} »."];
     }
     $steamAppId = $game['steam_appid'] !== null ? (int) $game['steam_appid'] : null;
     if ($dup = find_lan_duplicate((int) $lan['id'], $game['title'], $steamAppId)) {
-        $who = (int) $dup['user_id'] === (int) $user['id'] ? 'toi' : $dup['proposed_by'];
+        $who = !$force && (int) $dup['user_id'] === (int) $user['id'] ? 'toi' : $dup['proposed_by'];
         return [false, "« {$dup['title']} » est déjà dans le pot commun de « {$lan['title']} » (proposé par {$who})."];
     }
     try {

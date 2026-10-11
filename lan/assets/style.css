@@ -193,3 +193,8 @@ input[type=number], input[type=datetime-local] {
 .inline-check { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-weight: 400; }
 .rank-head .players { font-size: .75rem; }
 details.small summary { cursor: pointer; font-size: .85rem; margin-bottom: 6px; }
+.pick-list { list-style: none; padding: 0; margin: 0 0 14px; display: grid; gap: 4px; }
+.pick-list li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; padding: 8px 10px; border-radius: 8px; background: var(--bg); }
+.pick-list li.in-pot { opacity: .55; }
+.pick-list input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); }
+.lists-tools { display: flex; gap: 12px; margin: 0 0 8px; }
