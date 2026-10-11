@@ -128,18 +128,51 @@ function post_string(string $key): string
     return is_string($value) ? $value : '';
 }
 
-/** Date de LAN lisible : « samedi 14 novembre 2026 ». */
-function format_date(string $isoDate): string
+/** Jour en toutes lettres : « vendredi 14 novembre (2026) ». Accepte 'AAAA-MM-JJ' ou 'AAAA-MM-JJ HH:MM'. */
+function fr_date(string $value, bool $withYear = true): string
 {
-    $ts = strtotime($isoDate);
+    $ts = strtotime(substr($value, 0, 10));
     if ($ts === false) {
-        return $isoDate;
+        return $value;
     }
     if (class_exists('IntlDateFormatter')) {
-        $formatter = new IntlDateFormatter('fr_BE', IntlDateFormatter::FULL, IntlDateFormatter::NONE, config('timezone'));
+        $formatter = new IntlDateFormatter('fr_BE', IntlDateFormatter::NONE, IntlDateFormatter::NONE,
+            config('timezone'), null, $withYear ? 'EEEE d MMMM y' : 'EEEE d MMMM');
         return (string) $formatter->format($ts);
     }
-    return date('d/m/Y', $ts);
+    return date($withYear ? 'd/m/Y' : 'd/m', $ts);
+}
+
+/** Heure « 18h00 » d'une valeur 'AAAA-MM-JJ HH:MM' (vide si pas d'heure). */
+function fr_time(string $value): string
+{
+    return strlen($value) >= 16 ? str_replace(':', 'h', substr($value, 11, 5)) : '';
+}
+
+/** Période d'une LAN : « du vendredi 14 novembre à 18h00 au dimanche 16 novembre 2026 à 18h00 ». */
+function format_lan_dates(array $lan): string
+{
+    $start = (string) ($lan['starts_at'] ?: $lan['lan_date']);
+    $end = (string) ($lan['ends_at'] ?: $start);
+    $at = fn(string $v) => fr_time($v) !== '' ? ' à ' . fr_time($v) : '';
+
+    if (substr($start, 0, 10) === substr($end, 0, 10)) {
+        $hours = fr_time($start) !== '' && fr_time($end) !== '' && $end !== $start
+            ? ', de ' . fr_time($start) . ' à ' . fr_time($end)
+            : $at($start);
+        return fr_date($start) . $hours;
+    }
+    $sameYear = substr($start, 0, 4) === substr($end, 0, 4);
+    return 'du ' . fr_date($start, !$sameYear) . $at($start) . ' au ' . fr_date($end) . $at($end);
+}
+
+/** Valeur d'un champ datetime-local (« 2026-11-14T18:00 ») → 'AAAA-MM-JJ HH:MM', ou '' si invalide. */
+function parse_datetime_local(string $value): string
+{
+    if (!preg_match('/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/', $value, $m) || strtotime("{$m[1]} {$m[2]}") === false) {
+        return '';
+    }
+    return "{$m[1]} {$m[2]}";
 }
 
 /** URL de retour après connexion : uniquement une page locale du module. */

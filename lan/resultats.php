@@ -4,6 +4,25 @@ require __DIR__ . '/inc/bootstrap.php';
 
 $configured = (string) config('admin_password') !== '';
 
+/**
+ * Champs du formulaire de LAN (création / modification).
+ *
+ * @return array{0: ?string, 1: array{title: string, starts_at: string, ends_at: string}} [erreur, valeurs]
+ */
+function lan_from_post(): array
+{
+    $start = parse_datetime_local(post_string('starts_at'));
+    $end = parse_datetime_local(post_string('ends_at'));
+    if ($start === '' || $end === '') {
+        return ['Date de début ou de fin invalide.', []];
+    }
+    if ($end < $start) {
+        return ['La fin doit être après le début.', []];
+    }
+    $title = clean_line(post_string('title'), 80) ?: 'LAN du ' . date('d/m/Y', (int) strtotime($start));
+    return [null, ['title' => $title, 'starts_at' => $start, 'ends_at' => $end]];
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = post_string('action');
     $id = (int) post_string('id');
@@ -25,15 +44,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 unset($_SESSION['admin']);
                 break;
             case 'create_lan':
-                $date = post_string('lan_date');
-                if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
-                    flash('error', 'Date invalide.');
+                [$error, $lan] = lan_from_post();
+                if ($error) {
+                    flash('error', $error);
                     break;
                 }
-                $title = clean_line(post_string('title'), 80) ?: 'LAN du ' . date('d/m/Y', strtotime($date));
-                db_exec('INSERT INTO lans (title, lan_date) VALUES (?, ?)', [$title, $date]);
+                // Votes fermés au départ : l'organisateur les ouvre quand le pot commun est prêt
+                db_exec('INSERT INTO lans (title, lan_date, starts_at, ends_at, proposals_open, votes_open) VALUES (?, ?, ?, ?, 1, 0)',
+                    [$lan['title'], substr($lan['starts_at'], 0, 10), $lan['starts_at'], $lan['ends_at']]);
                 $back = 'resultats.php?lan=' . db()->lastInsertId();
-                flash('success', "« {$title} » créée : chacun peut maintenant proposer des jeux de sa liste.");
+                flash('success', "« {$lan['title']} » créée : chacun peut proposer des jeux de sa liste. Les votes sont fermés pour l'instant.");
+                break;
+            case 'update_lan':
+                [$error, $lan] = lan_from_post();
+                if ($error) {
+                    flash('error', $error);
+                    break;
+                }
+                db_exec('UPDATE lans SET title = ?, lan_date = ?, starts_at = ?, ends_at = ? WHERE id = ?',
+                    [$lan['title'], substr($lan['starts_at'], 0, 10), $lan['starts_at'], $lan['ends_at'], $id]);
+                flash('success', 'LAN mise à jour.');
                 break;
             case 'toggle_proposals':
                 db_exec('UPDATE lans SET proposals_open = 1 - proposals_open WHERE id = ?', [$id]);
@@ -47,16 +77,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash('success', 'LAN supprimée (avec son pot commun et ses votes).');
                 break;
             case 'reset_votes':
-                db_exec('DELETE FROM lan_votes WHERE lan_id = ?', [$id]);
+                db_exec('DELETE FROM lan_ratings WHERE lan_id = ?', [$id]);
                 flash('success', 'Votes remis à zéro pour cette LAN.');
                 break;
             case 'delete_proposal':
                 db_exec('DELETE FROM proposals WHERE id = ?', [$id]);
                 flash('success', 'Jeu retiré du pot commun (et ses votes).');
                 break;
-            case 'delete_vote':
-                db_exec('DELETE FROM lan_votes WHERE id = ?', [$id]);
-                flash('success', 'Vote supprimé.');
+            case 'delete_ballot':
+                db_exec('DELETE FROM lan_ratings WHERE lan_id = ? AND user_id = ?', [(int) post_string('lan'), $id]);
+                flash('success', 'Vote supprimé : la personne peut revoter.');
+                break;
+            case 'save_options':
+                $posted = is_array($_POST['options'] ?? null) ? $_POST['options'] : [];
+                $remaining = count(vote_options());
+                foreach (vote_options() as $option) {
+                    $row = $posted[$option['id']] ?? null;
+                    if (!is_array($row)) {
+                        continue;
+                    }
+                    if (!empty($row['delete'])) {
+                        if ($remaining > 1) {
+                            db_exec('DELETE FROM vote_options WHERE id = ?', [$option['id']]);
+                            $remaining--;
+                        } else {
+                            flash('error', 'Il faut garder au moins une option de vote.');
+                        }
+                        continue;
+                    }
+                    $label = clean_line(is_string($row['label'] ?? null) ? $row['label'] : '', 40);
+                    if ($label !== '') {
+                        db_exec('UPDATE vote_options SET label = ?, points = ? WHERE id = ?',
+                            [$label, max(-100, min(100, (int) ($row['points'] ?? 0))), $option['id']]);
+                    }
+                }
+                $newLabel = clean_line(post_string('new_label'), 40);
+                if ($newLabel !== '') {
+                    db_exec('INSERT INTO vote_options (label, points) VALUES (?, ?)',
+                        [$newLabel, max(-100, min(100, (int) post_string('new_points')))]);
+                }
+                flash('success', 'Options de vote enregistrées.');
                 break;
             case 'reset_password':
                 if ($target = find_user($id)) {
@@ -103,19 +163,54 @@ $lans = all_lans();
 $lan = selected_lan($lans);
 $lanId = $lan ? (int) $lan['id'] : 0;
 
-$ranking = db_rows('SELECT p.*, u.name AS proposed_by, COUNT(v.id) AS votes
-                    FROM proposals p JOIN users u ON u.id = p.user_id LEFT JOIN lan_votes v ON v.proposal_id = p.id
+// Classement : somme des points de toutes les notes
+$ranking = db_rows('SELECT p.*, u.name AS proposed_by, COALESCE(SUM(o.points), 0) AS score, COUNT(r.id) AS ratings
+                    FROM proposals p
+                    JOIN users u ON u.id = p.user_id
+                    LEFT JOIN lan_ratings r ON r.proposal_id = p.id
+                    LEFT JOIN vote_options o ON o.id = r.option_id
                     WHERE p.lan_id = ? GROUP BY p.id
-                    ORDER BY votes DESC, p.title COLLATE NOCASE', [$lanId]);
-$votesByProposal = [];
-foreach (db_rows('SELECT v.id, v.proposal_id, u.name FROM lan_votes v JOIN users u ON u.id = v.user_id
-                  WHERE v.lan_id = ? ORDER BY u.name COLLATE NOCASE', [$lanId]) as $vote) {
-    $votesByProposal[$vote['proposal_id']][] = $vote;
+                    ORDER BY score DESC, ratings DESC, p.title COLLATE NOCASE', [$lanId]);
+$ratingsByProposal = [];
+foreach (db_rows('SELECT r.proposal_id, u.name, o.label, o.points FROM lan_ratings r
+                  JOIN users u ON u.id = r.user_id JOIN vote_options o ON o.id = r.option_id
+                  WHERE r.lan_id = ? ORDER BY o.points DESC, u.name COLLATE NOCASE', [$lanId]) as $rating) {
+    $ratingsByProposal[$rating['proposal_id']][] = $rating;
 }
-$total = array_sum(array_column($ranking, 'votes'));
-$top = $ranking ? (int) $ranking[0]['votes'] : 0;
+// Bulletins : une ligne par personne ayant voté
+$ballots = db_rows('SELECT u.id, u.name, COUNT(r.id) AS rated, MIN(r.created_at) AS submitted_at
+                    FROM lan_ratings r JOIN users u ON u.id = r.user_id
+                    WHERE r.lan_id = ? GROUP BY u.id ORDER BY u.name COLLATE NOCASE', [$lanId]);
+$maxAbs = max([1, ...array_map(fn($g) => abs((int) $g['score']), $ranking)]);
+$topScore = $ranking ? (int) $ranking[0]['score'] : 0;
+$options = vote_options();
+$optionUsage = array_column(db_rows('SELECT option_id, COUNT(*) AS n FROM lan_ratings GROUP BY option_id'), 'n', 'option_id');
 $users = db_rows('SELECT u.*, (SELECT COUNT(*) FROM list_games g WHERE g.user_id = u.id) AS games
                   FROM users u ORDER BY u.name COLLATE NOCASE');
+
+/** 'AAAA-MM-JJ HH:MM' → valeur d'un champ datetime-local */
+function datetime_local(string $value): string
+{
+    return strlen($value) >= 16 ? str_replace(' ', 'T', substr($value, 0, 16)) : substr($value, 0, 10) . 'T18:00';
+}
+
+/** Champs communs aux formulaires de création / modification de LAN */
+function lan_fields(array $lan): void
+{
+    ?>
+    <label>Nom <small class="muted">(facultatif)</small>
+        <input type="text" name="title" maxlength="80" placeholder="ex. LAN d'hiver" value="<?= e($lan['title']) ?>">
+    </label>
+    <div class="datetime-row">
+        <label>Début
+            <input type="datetime-local" name="starts_at" required value="<?= e(datetime_local($lan['starts_at'])) ?>">
+        </label>
+        <label>Fin
+            <input type="datetime-local" name="ends_at" required value="<?= e(datetime_local($lan['ends_at'])) ?>">
+        </label>
+    </div>
+    <?php
+}
 
 /** Bouton d'action admin (formulaire POST minimal) */
 function admin_button(string $action, string $label, string $class = 'btn-secondary', ?int $id = null, ?string $confirm = null, int $lanId = 0): string
@@ -142,16 +237,15 @@ function admin_button(string $action, string $label, string $class = 'btn-second
 
 <details class="card"<?= $lans ? '' : ' open' ?>>
     <summary>➕ Créer une LAN</summary>
-    <form method="post" class="create-lan">
+    <form method="post">
         <?= csrf_field() ?>
         <input type="hidden" name="action" value="create_lan">
-        <label>Date
-            <input type="date" name="lan_date" required value="<?= date('Y-m-d', strtotime('+2 weeks')) ?>">
-        </label>
-        <label>Nom <small class="muted">(facultatif)</small>
-            <input type="text" name="title" maxlength="80" placeholder="ex. LAN d'hiver">
-        </label>
-        <button type="submit">Créer</button>
+        <?php
+        $friday = strtotime('friday +1 week');
+        lan_fields(['title' => '', 'starts_at' => date('Y-m-d', $friday) . ' 18:00', 'ends_at' => date('Y-m-d', strtotime('+2 days', $friday)) . ' 18:00']);
+        ?>
+        <p class="muted small">Les propositions sont ouvertes dès la création ; les votes restent fermés jusqu'à ce que tu les ouvres.</p>
+        <button type="submit">Créer la LAN</button>
     </form>
 </details>
 
@@ -164,11 +258,12 @@ function admin_button(string $action, string $label, string $class = 'btn-second
         </nav>
     <?php endif; ?>
 
-    <h2><?= e($lan['title']) ?> <small class="muted">· <?= e(format_date($lan['lan_date'])) ?></small></h2>
+    <h2><?= e($lan['title']) ?></h2>
+    <p class="muted">📅 <?= e(format_lan_dates($lan)) ?></p>
 
     <div class="stats">
         <div><strong><?= count($ranking) ?></strong> jeux dans le pot</div>
-        <div><strong><?= $total ?></strong> votes</div>
+        <div><strong><?= count($ballots) ?></strong> personne<?= count($ballots) > 1 ? 's ont' : ' a' ?> voté</div>
         <div><strong><?= count($users) ?></strong> comptes</div>
     </div>
 
@@ -176,11 +271,27 @@ function admin_button(string $action, string $label, string $class = 'btn-second
         <span>Propositions : <strong><?= (int) $lan['proposals_open'] ? 'ouvertes' : 'fermées' ?></strong></span>
         <?= admin_button('toggle_proposals', (int) $lan['proposals_open'] ? 'Fermer' : 'Ouvrir', 'btn-secondary', $lanId, null, $lanId) ?>
         <span>Votes : <strong><?= (int) $lan['votes_open'] ? 'ouverts' : 'fermés' ?></strong></span>
-        <?= admin_button('toggle_votes', (int) $lan['votes_open'] ? 'Fermer' : 'Ouvrir', 'btn-secondary', $lanId, null, $lanId) ?>
+        <?= admin_button('toggle_votes', (int) $lan['votes_open'] ? 'Fermer les votes' : 'Ouvrir les votes', (int) $lan['votes_open'] ? 'btn-secondary' : '', $lanId,
+            !(int) $lan['votes_open'] && (int) $lan['proposals_open'] ? 'Les propositions sont encore ouvertes : un jeu ajouté après un vote devra être noté en plus. Ouvrir les votes quand même ?' : null, $lanId) ?>
         <?= admin_button('reset_votes', 'Votes à zéro', 'btn-danger', $lanId, 'Supprimer tous les votes de cette LAN ?', $lanId) ?>
-        <?= admin_button('delete_lan', 'Supprimer la LAN', 'btn-danger', $lanId, "Supprimer « {$lan['title']} », son pot commun et ses votes ?") ?>
     </div>
 
+    <details class="card">
+        <summary>✏️ Modifier la LAN (nom, dates)</summary>
+        <form method="post">
+            <?= csrf_field() ?>
+            <input type="hidden" name="action" value="update_lan">
+            <input type="hidden" name="id" value="<?= $lanId ?>">
+            <input type="hidden" name="lan" value="<?= $lanId ?>">
+            <?php lan_fields($lan); ?>
+            <div class="form-actions">
+                <button type="submit">Enregistrer</button>
+            </div>
+        </form>
+        <p><?= admin_button('delete_lan', 'Supprimer la LAN', 'btn-danger', $lanId, "Supprimer « {$lan['title']} », son pot commun et ses votes ?") ?></p>
+    </details>
+
+    <h3>Classement</h3>
     <?php if (!$ranking): ?>
         <p class="muted">Aucun jeu dans le pot commun pour l'instant.</p>
     <?php else: ?>
@@ -189,36 +300,96 @@ function admin_button(string $action, string $label, string $class = 'btn-second
             $rank = 0;
             $previous = null;
             foreach ($ranking as $i => $game):
-                $votes = (int) $game['votes'];
-                if ($votes !== $previous) {
+                $score = (int) $game['score'];
+                if ($score !== $previous) {
                     $rank = $i + 1; // ex aequo : même rang (1, 1, 3…)
-                    $previous = $votes;
+                    $previous = $score;
                 }
-                $percent = $total ? round($votes * 100 / $total) : 0;
+                $ratings = $ratingsByProposal[$game['id']] ?? [];
+                $counts = [];
+                foreach ($ratings as $rating) {
+                    $counts[$rating['label']] = ($counts[$rating['label']] ?? 0) + 1;
+                }
                 ?>
-                <li class="rank-item<?= $votes > 0 && $votes === $top ? ' leader' : '' ?>">
+                <li class="rank-item<?= (int) $game['ratings'] > 0 && $score === $topScore ? ' leader' : '' ?>">
                     <div class="rank-num"><?= $rank ?></div>
                     <div class="rank-main">
                         <div class="rank-head">
-                            <strong><?= e($game['title']) ?></strong>
-                            <span><?= $votes ?> vote<?= $votes > 1 ? 's' : '' ?> · <?= $percent ?> %</span>
+                            <strong><?= e($game['title']) ?>
+                                <?php if ($game['players'] !== ''): ?><span class="players">👥 <?= e(players_label($game['players'])) ?></span><?php endif; ?>
+                            </strong>
+                            <span><span class="score <?= $score > 0 ? 'score-pos' : ($score < 0 ? 'score-neg' : '') ?>"><?= sprintf('%+d', $score) ?> pts</span>
+                                · <?= (int) $game['ratings'] ?> avis</span>
                         </div>
-                        <div class="bar"><span style="width: <?= $top ? round($votes * 100 / $top) : 0 ?>%"></span></div>
-                        <div class="voters">
-                            <?php foreach ($votesByProposal[$game['id']] ?? [] as $vote): ?>
-                                <span class="voter"><?= e($vote['name']) ?><?= admin_button('delete_vote', '×', 'btn-link', (int) $vote['id'], "Supprimer le vote de {$vote['name']} ?", $lanId) ?></span>
-                            <?php endforeach; ?>
-                        </div>
+                        <div class="bar"><span class="<?= $score < 0 ? 'neg' : '' ?>" style="width: <?= round(abs($score) * 100 / $maxAbs) ?>%"></span></div>
+                        <?php if ($counts): ?>
+                            <div class="breakdown">
+                                <?php foreach ($counts as $label => $n): ?><span><?= e($label) ?> ×<?= $n ?></span><?php endforeach; ?>
+                            </div>
+                            <details class="small">
+                                <summary class="muted">Détail des avis</summary>
+                                <div class="voters">
+                                    <?php foreach ($ratings as $rating): ?>
+                                        <span class="voter"><?= e($rating['name']) ?> : <?= e($rating['label']) ?> (<?= sprintf('%+d', (int) $rating['points']) ?>)</span>
+                                    <?php endforeach; ?>
+                                </div>
+                            </details>
+                        <?php endif; ?>
                         <div class="muted small">
                             proposé par <?= e($game['proposed_by']) ?>
-                            <?= admin_button('delete_proposal', 'Retirer du pot', 'btn-link', (int) $game['id'], "Retirer « {$game['title']} » du pot commun ?", $lanId) ?>
+                            <?= admin_button('delete_proposal', 'Retirer du pot', 'btn-link', (int) $game['id'], "Retirer « {$game['title']} » du pot commun (et ses votes) ?", $lanId) ?>
                         </div>
                     </div>
                 </li>
             <?php endforeach; ?>
         </ol>
     <?php endif; ?>
+
+    <h3>Votes reçus (<?= count($ballots) ?>)</h3>
+    <?php if (!$ballots): ?>
+        <p class="muted">Personne n'a encore voté.</p>
+    <?php else: ?>
+        <div class="voters">
+            <?php foreach ($ballots as $ballot):
+                $complete = (int) $ballot['rated'] >= count($ranking); ?>
+                <span class="voter"><?= e($ballot['name']) ?>
+                    <?= $complete ? '✔' : '<span class="muted">(' . (int) $ballot['rated'] . '/' . count($ranking) . ')</span>' ?>
+                    <?= admin_button('delete_ballot', '×', 'btn-link', (int) $ballot['id'], "Supprimer le vote de {$ballot['name']} ? (il pourra revoter)", $lanId) ?>
+                </span>
+            <?php endforeach; ?>
+        </div>
+    <?php endif; ?>
 <?php endif; ?>
+
+<h2>Options de vote</h2>
+<form method="post" class="card">
+    <?= csrf_field() ?>
+    <input type="hidden" name="action" value="save_options">
+    <input type="hidden" name="lan" value="<?= $lanId ?>">
+    <p class="muted small">Chaque personne choisit une option pour chaque jeu ; le classement additionne les points.
+        Modifier les points d'une option recalcule aussi les votes déjà faits.</p>
+    <table class="users options-table">
+        <thead><tr><th>Libellé</th><th>Points</th><th>Supprimer</th></tr></thead>
+        <tbody>
+        <?php foreach ($options as $option): $used = (int) ($optionUsage[$option['id']] ?? 0); ?>
+            <tr>
+                <td><input type="text" name="options[<?= (int) $option['id'] ?>][label]" maxlength="40" required value="<?= e($option['label']) ?>"></td>
+                <td><input type="number" name="options[<?= (int) $option['id'] ?>][points]" min="-100" max="100" required value="<?= (int) $option['points'] ?>"></td>
+                <td><label class="inline-check"><input type="checkbox" name="options[<?= (int) $option['id'] ?>][delete]" value="1">
+                    <?php if ($used): ?><small class="muted">efface aussi <?= $used ?> avis</small><?php endif; ?></label></td>
+            </tr>
+        <?php endforeach; ?>
+            <tr>
+                <td><input type="text" name="new_label" maxlength="40" placeholder="➕ Nouvelle option"></td>
+                <td><input type="number" name="new_points" min="-100" max="100" value="0"></td>
+                <td></td>
+            </tr>
+        </tbody>
+    </table>
+    <div class="form-actions" style="margin-top: 12px;">
+        <button type="submit">Enregistrer les options</button>
+    </div>
+</form>
 
 <h2>Comptes (<?= count($users) ?>)</h2>
 <?php if (!$users): ?>

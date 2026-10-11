@@ -6,7 +6,7 @@ declare(strict_types=1);
  * Si la description est vide (pas de JavaScript, ou champ vidé), on complète automatiquement.
  *
  * @return array{title: string, description: string, video_url: string, store_url: string,
- *               image_url: string, tags: string, steam_appid: ?int, comment: string}
+ *               image_url: string, tags: string, steam_appid: ?int, comment: string, players: string}
  */
 function game_from_post(): array
 {
@@ -19,6 +19,7 @@ function game_from_post(): array
         'tags' => clean_line(post_string('tags'), 300),
         'steam_appid' => ctype_digit(post_string('steam_appid')) ? (int) post_string('steam_appid') : null,
         'comment' => trim(mb_substr(post_string('comment'), 0, 500)),
+        'players' => clean_line(post_string('players'), 30),
     ];
 
     if ($game['description'] === '' && normalize_key($game['title']) !== '') {
@@ -41,7 +42,7 @@ function render_game_form(?array $game, array $openLans = []): void
 {
     $editing = $game !== null;
     $game ??= ['id' => 0, 'title' => '', 'description' => '', 'video_url' => '', 'store_url' => '',
-               'image_url' => '', 'tags' => '', 'steam_appid' => null, 'comment' => ''];
+               'image_url' => '', 'tags' => '', 'steam_appid' => null, 'comment' => '', 'players' => ''];
     ?>
     <form method="post" class="card" id="game-form" autocomplete="off" data-mode="<?= $editing ? 'edit' : 'add' ?>">
         <?= csrf_field() ?>
@@ -78,6 +79,10 @@ function render_game_form(?array $game, array $openLans = []): void
             <input type="url" name="store_url" id="store_url" value="<?= e($game['store_url']) ?>">
         </label>
 
+        <label>Nombre de joueurs <small class="muted">(facultatif)</small>
+            <input type="text" name="players" maxlength="30" value="<?= e($game['players']) ?>" placeholder="ex. 2 à 8, jusqu'à 16, 4 par équipe…">
+        </label>
+
         <label>Mon commentaire <small class="muted">(facultatif — affiché avec ton nom si tu proposes le jeu à une LAN)</small>
             <textarea name="comment" rows="2" maxlength="500" placeholder="ex. Parfait à 8, parties de 20 minutes, gratuit sur Epic…"><?= e($game['comment']) ?></textarea>
         </label>
@@ -87,7 +92,7 @@ function render_game_form(?array $game, array $openLans = []): void
                 <select name="propose_lan">
                     <option value="">— garder seulement dans ma liste —</option>
                     <?php foreach ($openLans as $lan): ?>
-                        <option value="<?= (int) $lan['id'] ?>"><?= e($lan['title']) ?> (<?= e(format_date($lan['lan_date'])) ?>)</option>
+                        <option value="<?= (int) $lan['id'] ?>"><?= e($lan['title']) ?> (<?= e(fr_date($lan['starts_at'])) ?>)</option>
                     <?php endforeach; ?>
                 </select>
             </label>

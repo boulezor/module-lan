@@ -1,6 +1,15 @@
 <?php
 declare(strict_types=1);
 
+const DEFAULT_VOTE_OPTIONS = [
+    ['Je veux', 5],
+    ["J'adore", 3],
+    ["J'aime bien", 1],
+    ['À voir', 0],
+    ["J'aime pas", -3],
+    ['Je déteste', -5],
+];
+
 function db(): PDO
 {
     static $pdo = null;
@@ -42,15 +51,18 @@ function db(): PDO
             video_url   TEXT NOT NULL DEFAULT '',
             store_url   TEXT NOT NULL DEFAULT '',
             comment     TEXT NOT NULL DEFAULT '',
+            players     TEXT NOT NULL DEFAULT '',
             created_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             UNIQUE (user_id, normalized)
         );
         CREATE TABLE IF NOT EXISTS lans (
             id             INTEGER PRIMARY KEY AUTOINCREMENT,
             title          TEXT NOT NULL,
-            lan_date       TEXT NOT NULL,
+            lan_date       TEXT NOT NULL,              -- jour de début (tri, compatibilité)
+            starts_at      TEXT NOT NULL DEFAULT '',   -- 'AAAA-MM-JJ HH:MM'
+            ends_at        TEXT NOT NULL DEFAULT '',
             proposals_open INTEGER NOT NULL DEFAULT 1,
-            votes_open     INTEGER NOT NULL DEFAULT 1,
+            votes_open     INTEGER NOT NULL DEFAULT 0,
             created_at     TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
         -- Pot commun d'une LAN : copie du jeu au moment où il est proposé
@@ -68,24 +80,47 @@ function db(): PDO
             video_url    TEXT NOT NULL DEFAULT '',
             store_url    TEXT NOT NULL DEFAULT '',
             comment      TEXT NOT NULL DEFAULT '',
+            players      TEXT NOT NULL DEFAULT '',
             created_at   TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             UNIQUE (lan_id, normalized),
             UNIQUE (lan_id, steam_appid)
         );
-        CREATE TABLE IF NOT EXISTS lan_votes (
+        -- Options de vote paramétrables (libellé + points)
+        CREATE TABLE IF NOT EXISTS vote_options (
+            id     INTEGER PRIMARY KEY AUTOINCREMENT,
+            label  TEXT NOT NULL,
+            points INTEGER NOT NULL
+        );
+        -- Note donnée par une personne à un jeu du pot commun (une par jeu et par personne)
+        CREATE TABLE IF NOT EXISTS lan_ratings (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
             lan_id      INTEGER NOT NULL REFERENCES lans(id) ON DELETE CASCADE,
             proposal_id INTEGER NOT NULL REFERENCES proposals(id) ON DELETE CASCADE,
             user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            option_id   INTEGER NOT NULL REFERENCES vote_options(id) ON DELETE CASCADE,
             created_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE (lan_id, user_id)
+            UNIQUE (proposal_id, user_id)
         );
         SQL);
 
     // Colonnes ajoutées après coup : mise à jour des bases déjà créées
     add_missing_column($pdo, 'list_games', 'comment', "TEXT NOT NULL DEFAULT ''");
     add_missing_column($pdo, 'proposals', 'comment', "TEXT NOT NULL DEFAULT ''");
+    add_missing_column($pdo, 'list_games', 'players', "TEXT NOT NULL DEFAULT ''");
+    add_missing_column($pdo, 'proposals', 'players', "TEXT NOT NULL DEFAULT ''");
+    add_missing_column($pdo, 'lans', 'starts_at', "TEXT NOT NULL DEFAULT ''");
+    add_missing_column($pdo, 'lans', 'ends_at', "TEXT NOT NULL DEFAULT ''");
+    $pdo->exec("UPDATE lans SET starts_at = lan_date WHERE starts_at = ''");
+    $pdo->exec("UPDATE lans SET ends_at = starts_at WHERE ends_at = ''");
+
+    // Options de vote par défaut (modifiables ensuite dans la page Résultats)
+    if ((int) $pdo->query('SELECT COUNT(*) FROM vote_options')->fetchColumn() === 0) {
+        $insert = $pdo->prepare('INSERT INTO vote_options (label, points) VALUES (?, ?)');
+        foreach (DEFAULT_VOTE_OPTIONS as [$label, $points]) {
+            $insert->execute([$label, $points]);
+        }
+    }
 
     return $pdo;
 }
@@ -125,13 +160,19 @@ function find_lan(int $id): ?array
     return db_row('SELECT * FROM lans WHERE id = ?', [$id]);
 }
 
-/** @return list<array<string, mixed>> Prochaines LAN d'abord, puis les passées (plus récentes d'abord). */
+/** @return list<array<string, mixed>> LAN en cours / à venir d'abord, puis les passées (plus récentes d'abord). */
 function all_lans(): array
 {
     return db_rows("SELECT * FROM lans
-                    ORDER BY lan_date < date('now', 'localtime'),
-                             CASE WHEN lan_date >= date('now', 'localtime') THEN lan_date END ASC,
-                             lan_date DESC");
+                    ORDER BY substr(ends_at, 1, 10) < date('now', 'localtime'),
+                             CASE WHEN substr(ends_at, 1, 10) >= date('now', 'localtime') THEN starts_at END ASC,
+                             starts_at DESC");
+}
+
+/** @return list<array<string, mixed>> Options de vote, de la plus positive à la plus négative. */
+function vote_options(): array
+{
+    return db_rows('SELECT * FROM vote_options ORDER BY points DESC, id');
 }
 
 /** @return list<array<string, mixed>> */
@@ -228,10 +269,11 @@ function propose_to_lan(array $user, array $game, array $lan): array
     }
     try {
         db_exec('INSERT INTO proposals (lan_id, user_id, list_game_id, title, normalized, steam_appid,
-                                        description, tags, image_url, video_url, store_url, comment)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
+                                        description, tags, image_url, video_url, store_url, comment, players)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
             $lan['id'], $user['id'], $game['id'], $game['title'], $game['normalized'], $steamAppId,
             $game['description'], $game['tags'], $game['image_url'], $game['video_url'], $game['store_url'], $game['comment'],
+            $game['players'],
         ]);
     } catch (PDOException) {
         return [false, "« {$game['title']} » vient d'être proposé par quelqu'un d'autre."];
