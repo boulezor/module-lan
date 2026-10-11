@@ -84,7 +84,13 @@ function clean_url(string $url): string
 
 function youtube_search_url(string $title): string
 {
-    return 'https://www.youtube.com/results?search_query=' . urlencode($title . ' gameplay trailer');
+    return 'https://www.youtube.com/results?search_query=' . urlencode($title . ' official trailer');
+}
+
+/** Lien de recherche YouTube (et non une vidéo précise) ? */
+function is_youtube_search_url(string $url): bool
+{
+    return str_contains($url, 'youtube.com/results?');
 }
 
 function redirect(string $url): never

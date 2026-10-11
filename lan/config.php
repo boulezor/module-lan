@@ -44,9 +44,10 @@ return [
     'openai_timeout' => 30,
     'openai_base_url' => 'https://api.openai.com/v1',
 
-    // Optionnel : clé YouTube Data API v3 pour obtenir un lien direct vers une vidéo.
-    // Sans clé, on donne un lien vers une recherche YouTube.
+    // Optionnel : clé YouTube Data API v3 (gratuite) pour un lien direct vers la bande-annonce officielle.
+    // Sans clé, on donne un lien vers une recherche YouTube. Se règle aussi depuis la page Résultats.
     'youtube_api_key' => '',
+    'youtube_base_url' => 'https://www.googleapis.com/youtube/v3',
 
     // Délai max (secondes) de chaque appel vers Steam / Wikipédia / OpenAI / YouTube.
     'http_timeout' => 6,

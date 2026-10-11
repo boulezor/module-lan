@@ -316,18 +316,54 @@ function openai_describe(string $title, string $context, string $tags): ?array
     ];
 }
 
+/** Clé YouTube Data API : fichier de config en priorité, sinon celle enregistrée dans l'admin. */
+function youtube_key(): string
+{
+    return (string) (config('youtube_api_key') ?: setting('youtube_api_key'));
+}
+
+/**
+ * Bande-annonce officielle sur YouTube (API YouTube Data v3, gratuite avec une clé Google).
+ *
+ * @return array{url: ?string, title: string, error: string}
+ */
+function youtube_find_trailer(string $title): array
+{
+    $response = http_request(rtrim((string) config('youtube_base_url'), '/') . '/search?' . http_build_query([
+        'part' => 'snippet', 'type' => 'video', 'maxResults' => 5, 'relevanceLanguage' => 'fr',
+        'q' => $title . ' official trailer', 'key' => youtube_key(),
+    ]));
+    $items = $response['data']['items'] ?? [];
+    if (!$items) {
+        if ($response['error'] !== '') {
+            set_setting('youtube_last_error', date('d/m H:i') . ' — ' . $response['error']);
+        }
+        return ['url' => null, 'title' => '', 'error' => $response['error'] ?: 'Aucune vidéo trouvée.'];
+    }
+    // De préférence une vidéo dont le titre parle de « trailer » / « bande-annonce »
+    $best = $items[0];
+    foreach ($items as $item) {
+        if (preg_match('/trailer|bande[- ]annonce/i', (string) ($item['snippet']['title'] ?? ''))) {
+            $best = $item;
+            break;
+        }
+    }
+    $videoId = (string) ($best['id']['videoId'] ?? '');
+    if (!preg_match('/^[A-Za-z0-9_-]{11}$/', $videoId)) {
+        return ['url' => null, 'title' => '', 'error' => 'Réponse YouTube inattendue.'];
+    }
+    return [
+        'url' => 'https://www.youtube.com/watch?v=' . $videoId,
+        'title' => html_entity_decode((string) ($best['snippet']['title'] ?? ''), ENT_QUOTES, 'UTF-8'),
+        'error' => '',
+    ];
+}
+
+/** Lien vidéo : la bande-annonce trouvée sur YouTube, sinon un lien de recherche YouTube. */
 function youtube_lookup(string $title): string
 {
-    $key = (string) config('youtube_api_key');
-    if ($key !== '') {
-        $search = http_json('https://www.googleapis.com/youtube/v3/search?' . http_build_query([
-            'part' => 'snippet', 'type' => 'video', 'maxResults' => 1,
-            'q' => $title . ' gameplay trailer', 'key' => $key,
-        ]));
-        $videoId = $search['items'][0]['id']['videoId'] ?? null;
-        if (is_string($videoId) && $videoId !== '') {
-            return 'https://www.youtube.com/watch?v=' . rawurlencode($videoId);
-        }
+    if (youtube_key() !== '' && ($url = youtube_find_trailer($title)['url'])) {
+        return $url;
     }
     return youtube_search_url($title);
 }

@@ -49,8 +49,10 @@ avec « Voir plus »), et **pré-remplit le nombre de joueurs**. Coût : une fra
   (un par un, avec barre de progression). Description et points forts / faibles sont remplacés ; le commentaire perso
   n'est jamais modifié ; nombre de joueurs, image et liens ne sont complétés que s'ils sont vides.
 
-`youtube_api_key` (YouTube Data API v3, gratuite, dans le fichier de config) donne un lien direct vers une vidéo
-au lieu d'une page de recherche.
+**Bande-annonce YouTube** : avec une clé **YouTube Data API v3** (gratuite, ~100 recherches/jour), le lien « Vidéo »
+mène directement à la bande-annonce officielle (recherche « *nom du jeu* official trailer ») ; sinon, lien de recherche YouTube.
+La clé s'enregistre dans **Résultats › ▶ Bandes-annonces YouTube** (avec bouton **Tester**) ou dans le fichier de config.
+Pour l'obtenir : console.cloud.google.com › créer un projet › activer « YouTube Data API v3 » › *Identifiants › Créer une clé API*.
 
 ## Doublons
 

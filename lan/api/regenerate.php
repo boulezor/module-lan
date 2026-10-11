@@ -6,7 +6,8 @@ require dirname(__DIR__) . '/inc/bootstrap.php';
  * Admin : régénère la fiche d'un jeu du pot commun (description, points forts / faibles).
  * Appelé jeu par jeu depuis la page Résultats, pour ne pas dépasser le délai max d'une requête.
  * Le commentaire perso n'est jamais modifié ; le nombre de joueurs, l'image, les liens et les
- * catégories ne sont complétés que s'ils sont vides.
+ * catégories ne sont complétés que s'ils sont vides (un lien de recherche YouTube est remplacé
+ * par la bande-annonce trouvée).
  */
 
 header('Content-Type: application/json; charset=utf-8');
@@ -26,7 +27,7 @@ if (!$proposal) {
 }
 
 $info = lookup_game($proposal['title'], false);
-if ($info['description'] === '') {
+if ($info['description'] === '' && is_youtube_search_url($info['video_url'])) {
     echo json_encode(['ok' => false, 'title' => $proposal['title'], 'error' => 'aucune information trouvée'], JSON_UNESCAPED_UNICODE);
     exit;
 }
@@ -34,16 +35,18 @@ if ($info['description'] === '') {
 /** Nouvelles valeurs pour une fiche : texte remplacé, le reste seulement complété. */
 $merge = function (array $row) use ($info): array {
     $values = [
-        'description' => $info['description'],
+        'description' => $info['description'] !== '' ? $info['description'] : $row['description'],
         'pros' => $info['pros'] !== '' ? $info['pros'] : $row['pros'],
         'cons' => $info['cons'] !== '' ? $info['cons'] : $row['cons'],
     ];
     foreach (['players', 'image_url', 'tags', 'store_url'] as $field) {
         $values[$field] = $row[$field] !== '' ? $row[$field] : $info[$field];
     }
+    // Vidéo : un lien saisi à la main est gardé ; un lien de recherche est remplacé par la vidéo trouvée
+    $values['video_url'] = $row['video_url'] !== '' && !is_youtube_search_url($row['video_url']) ? $row['video_url'] : $info['video_url'];
     return $values;
 };
-$sql = 'UPDATE %s SET description = ?, pros = ?, cons = ?, players = ?, image_url = ?, tags = ?, store_url = ? WHERE id = ?';
+$sql = 'UPDATE %s SET description = ?, pros = ?, cons = ?, players = ?, image_url = ?, tags = ?, store_url = ?, video_url = ? WHERE id = ?';
 
 db_exec(sprintf($sql, 'proposals'), [...array_values($merge($proposal)), $proposal['id']]);
 if ($proposal['list_game_id'] && ($listGame = db_row('SELECT * FROM list_games WHERE id = ?', [$proposal['list_game_id']]))) {

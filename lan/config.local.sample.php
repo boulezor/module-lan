@@ -8,5 +8,6 @@ return [
     // Clé OpenAI : se règle aussi depuis la page Résultats (celle-ci est alors prioritaire)
     // 'openai_api_key' => 'sk-...',
     // 'openai_model' => 'gpt-4o-mini',
+    // Clé YouTube Data API v3 (bandes-annonces) : se règle aussi depuis la page Résultats
     // 'youtube_api_key' => 'AIza...',
 ];
