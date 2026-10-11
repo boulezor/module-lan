@@ -36,14 +36,18 @@ Prérequis : PHP 8.1+ avec `pdo_sqlite` et `curl`.
 
 La personne qui propose peut toujours corriger la description et les liens avant d'envoyer.
 
-**Avec une clé OpenAI** (facultatif), l'IA rédige une description de 5 à 10 phrases qui donne envie, avec
-👍 points forts et 👎 points faibles, et **pré-remplit le nombre de joueurs**. Coût : une fraction de centime par jeu
+**Avec une clé OpenAI** (facultatif), l'IA rédige une description de 5 à 10 phrases qui donne envie,
+une liste de 👍 points forts et de 👎 points faibles (affichés en tableau sous la description, repliée à 6 lignes
+avec « Voir plus »), et **pré-remplit le nombre de joueurs**. Coût : une fraction de centime par jeu
 (l'IA n'est appelée qu'à l'ajout d'un jeu).
 
 - La clé s'enregistre dans **Résultats › 🤖 Descriptions automatiques** (stockée dans la base, hors du web,
   jamais réaffichée en entier), avec le choix du modèle et un bouton **Tester**.
 - Ou dans `private/lan/config.php` (`'openai_api_key' => 'sk-…'`) : elle est alors prioritaire et non modifiable depuis l'admin.
 - Conseil : fixer une limite de dépenses mensuelle sur le compte OpenAI.
+- **Régénérer les fiches** : dans Résultats, un bouton refait la recherche pour tous les jeux du pot commun d'une LAN
+  (un par un, avec barre de progression). Description et points forts / faibles sont remplacés ; le commentaire perso
+  n'est jamais modifié ; nombre de joueurs, image et liens ne sont complétés que s'ils sont vides.
 
 `youtube_api_key` (YouTube Data API v3, gratuite, dans le fichier de config) donne un lien direct vers une vidéo
 au lieu d'une page de recherche.

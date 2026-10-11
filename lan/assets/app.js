@@ -28,6 +28,8 @@ document.querySelectorAll('form[data-confirm]').forEach((form) => {
         $('image_url').value = s.image_url || '';
         $('tags').value = s.tags || '';
         $('steam_appid').value = s.steam_appid || '';
+        $('pros').value = s.pros || '';
+        $('cons').value = s.cons || '';
         // Nombre de joueurs : on ne remplace pas ce que la personne a déjà tapé
         if (s.players && !$('players').value.trim()) $('players').value = s.players;
 
@@ -114,3 +116,52 @@ document.querySelectorAll('#lists-form [data-check]').forEach((button) => {
         button.form.querySelectorAll('input[name="games[]"]:not(:disabled)').forEach((box) => { box.checked = checked; });
     });
 });
+
+// Descriptions longues : « Voir plus » seulement si le texte dépasse 6 lignes
+document.querySelectorAll('.desc-wrap').forEach((wrap) => {
+    const desc = wrap.querySelector('.desc');
+    const button = wrap.querySelector('.more');
+    if (desc.scrollHeight > desc.clientHeight + 2) button.hidden = false;
+    button.addEventListener('click', (event) => {
+        event.preventDefault();
+        const open = desc.classList.toggle('expanded');
+        button.textContent = open ? 'Voir moins ▴' : 'Voir plus ▾';
+    });
+});
+
+// Admin : régénération des fiches du pot commun, une requête par jeu avec barre de progression
+(() => {
+    const box = document.getElementById('regen');
+    if (!box) return;
+    const button = box.querySelector('button');
+    const progress = box.querySelector('.regen-progress');
+    const bar = progress.querySelector('.bar span');
+    const status = progress.querySelector('.regen-status');
+    const ids = JSON.parse(box.dataset.ids);
+    const titles = JSON.parse(box.dataset.titles);
+
+    button.addEventListener('click', async () => {
+        if (!confirm(button.dataset.confirmText)) return;
+        button.disabled = true;
+        progress.hidden = false;
+        let done = 0;
+        const failed = [];
+        for (const [i, id] of ids.entries()) {
+            status.textContent = `${i + 1} / ${ids.length} — ${titles[i]}…`;
+            try {
+                const body = new FormData();
+                body.append('csrf', box.dataset.csrf);
+                body.append('id', id);
+                const res = await (await fetch('api/regenerate.php', { method: 'POST', body })).json();
+                res.ok ? done++ : failed.push(`${titles[i]} (${res.error})`);
+            } catch (err) {
+                failed.push(`${titles[i]} (erreur réseau ou délai dépassé)`);
+            }
+            bar.style.width = `${Math.round(((i + 1) * 100) / ids.length)}%`;
+        }
+        status.innerHTML = `✔ Terminé : ${done} fiche${done > 1 ? 's' : ''} mise${done > 1 ? 's' : ''} à jour.`
+            + (failed.length ? `<br>Non modifiés : ${failed.map((f) => f.replace(/</g, '&lt;')).join(', ')}` : '')
+            + ' <a href="">Recharger la page</a>';
+        button.disabled = false;
+    });
+})();

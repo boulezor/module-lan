@@ -57,6 +57,13 @@ function similarity(string $a, string $b): float
     return 1 - levenshtein($a, $b) / $max;
 }
 
+/** Liste de points (un par ligne) : lignes nettoyées, puces retirées, 6 points de 150 caractères maximum. */
+function clean_points(string $text): string
+{
+    $lines = array_map(fn($l) => clean_line((string) preg_replace('/^\s*[-•*👍👎]+\s*/u', '', $l), 150), explode("\n", $text));
+    return implode("\n", array_slice(array_values(array_filter($lines, fn($l) => $l !== '')), 0, 6));
+}
+
 /** Nettoie un texte libre sur une ligne (nom, titre). */
 function clean_line(string $value, int $maxLength): string
 {

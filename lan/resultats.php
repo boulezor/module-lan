@@ -486,6 +486,26 @@ $lastError = setting('openai_last_error');
     <p><?= admin_button('test_ai', '🔌 Tester la connexion à OpenAI', 'btn-secondary', null, null, $lanId) ?></p>
 <?php endif; ?>
 
+<?php if ($lan && $ranking): ?>
+    <div class="card regen" id="regen"
+         data-ids="<?= e(json_encode(array_map(fn($g) => (int) $g['id'], $ranking))) ?>"
+         data-titles="<?= e(json_encode(array_column($ranking, 'title'), JSON_UNESCAPED_UNICODE)) ?>"
+         data-csrf="<?= e(csrf_token()) ?>">
+        <p><strong>🔄 Régénérer les fiches du pot commun de « <?= e($lan['title']) ?> »</strong> (<?= count($ranking) ?> jeux)</p>
+        <p class="muted small">
+            Refait la recherche pour chaque jeu<?= $activeKey !== '' ? ' avec l\'IA' : ' (Steam / Wikipédia : pas de clé IA)' ?> :
+            description, points forts et points faibles sont remplacés. Le commentaire perso n'est jamais modifié ;
+            le nombre de joueurs, l'image et les liens ne sont complétés que s'ils sont vides.
+            La fiche dans la liste perso du propriétaire est mise à jour aussi.
+        </p>
+        <button type="button" class="btn-secondary" data-confirm-text="Régénérer les fiches des <?= count($ranking) ?> jeux du pot commun ?">Régénérer les <?= count($ranking) ?> fiches</button>
+        <div class="regen-progress" hidden>
+            <div class="bar"><span style="width: 0%"></span></div>
+            <p class="regen-status small"></p>
+        </div>
+    </div>
+<?php endif; ?>
+
 <h2>Options de vote</h2>
 <form method="post" class="card">
     <?= csrf_field() ?>

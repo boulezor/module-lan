@@ -6,7 +6,8 @@ declare(strict_types=1);
  * Si la description est vide (pas de JavaScript, ou champ vidé), on complète automatiquement.
  *
  * @return array{title: string, description: string, video_url: string, store_url: string,
- *               image_url: string, tags: string, steam_appid: ?int, comment: string, players: string}
+ *               image_url: string, tags: string, steam_appid: ?int, comment: string, players: string,
+ *               pros: string, cons: string}
  */
 function game_from_post(): array
 {
@@ -20,12 +21,14 @@ function game_from_post(): array
         'steam_appid' => ctype_digit(post_string('steam_appid')) ? (int) post_string('steam_appid') : null,
         'comment' => trim(mb_substr(post_string('comment'), 0, 500)),
         'players' => clean_line(post_string('players'), 30),
+        'pros' => clean_points(post_string('pros')),
+        'cons' => clean_points(post_string('cons')),
     ];
 
     if ($game['description'] === '' && normalize_key($game['title']) !== '') {
         $info = lookup_game($game['title']);
         $game['description'] = $info['description'];
-        foreach (['video_url', 'store_url', 'image_url', 'tags', 'steam_appid', 'players'] as $field) {
+        foreach (['video_url', 'store_url', 'image_url', 'tags', 'steam_appid', 'players', 'pros', 'cons'] as $field) {
             $game[$field] = $game[$field] ?: $info[$field];
         }
     }
@@ -42,7 +45,7 @@ function render_game_form(?array $game, array $openLans = []): void
 {
     $editing = $game !== null;
     $game ??= ['id' => 0, 'title' => '', 'description' => '', 'video_url' => '', 'store_url' => '',
-               'image_url' => '', 'tags' => '', 'steam_appid' => null, 'comment' => '', 'players' => ''];
+               'image_url' => '', 'tags' => '', 'steam_appid' => null, 'comment' => '', 'players' => '', 'pros' => '', 'cons' => ''];
     ?>
     <form method="post" class="card" id="game-form" autocomplete="off" data-mode="<?= $editing ? 'edit' : 'add' ?>">
         <?= csrf_field() ?>
@@ -78,6 +81,15 @@ function render_game_form(?array $game, array $openLans = []): void
         <label>Lien fiche du jeu (Steam, Wikipédia, site officiel…)
             <input type="url" name="store_url" id="store_url" value="<?= e($game['store_url']) ?>">
         </label>
+
+        <div class="proscons-fields">
+            <label>👍 Points forts <small class="muted">(un par ligne)</small>
+                <textarea name="pros" id="pros" rows="4" maxlength="900"><?= e($game['pros']) ?></textarea>
+            </label>
+            <label>👎 Points faibles <small class="muted">(un par ligne)</small>
+                <textarea name="cons" id="cons" rows="4" maxlength="900"><?= e($game['cons']) ?></textarea>
+            </label>
+        </div>
 
         <label>Nombre de joueurs <small class="muted">(facultatif)</small>
             <input type="text" name="players" id="players" maxlength="30" value="<?= e($game['players']) ?>" placeholder="ex. 2 à 8, jusqu'à 16, 4 par équipe…">

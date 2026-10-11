@@ -56,6 +56,28 @@ function page_footer(): void
     <?php
 }
 
+/**
+ * Description, points forts et points faibles d'un jeu.
+ * Compatible avec l'ancien format où l'IA mettait « 👍 Points forts : … » dans la description.
+ *
+ * @return array{0: string, 1: list<string>, 2: list<string>}
+ */
+function game_text_parts(array $game): array
+{
+    $description = (string) $game['description'];
+    $pros = array_filter(explode("\n", (string) ($game['pros'] ?? '')));
+    $cons = array_filter(explode("\n", (string) ($game['cons'] ?? '')));
+    if (!$pros && !$cons && preg_match_all('/^\s*(👍|👎)\s*Points (?:forts|faibles)\s*:\s*(.+)$/mu', $description, $matches, PREG_SET_ORDER)) {
+        foreach ($matches as [$line, $emoji, $list]) {
+            $items = array_filter(array_map('trim', preg_split('/\s*[,;]\s*/u', rtrim($list, '. '))));
+            $emoji === '👍' ? array_push($pros, ...$items) : array_push($cons, ...$items);
+            $description = str_replace($line, '', $description);
+        }
+        $description = trim($description);
+    }
+    return [$description, array_values($pros), array_values($cons)];
+}
+
 /** « 2 à 8 » → « 2 à 8 joueurs » (sauf si le mot y est déjà). */
 function players_label(string $players): string
 {
@@ -76,8 +98,28 @@ function game_media(array $game, ?callable $footer = null): void
         <?php if ($game['tags'] !== ''): ?>
             <p class="tags"><?php foreach (explode(', ', $game['tags']) as $tag): ?><span><?= e($tag) ?></span><?php endforeach; ?></p>
         <?php endif; ?>
-        <?php if ($game['description'] !== ''): ?>
-            <p class="desc"><?= nl2br(e($game['description'])) ?></p>
+        <?php [$description, $pros, $cons] = game_text_parts($game); ?>
+        <?php if ($description !== ''): ?>
+            <div class="desc-wrap">
+                <p class="desc clamp"><?= nl2br(e($description)) ?></p>
+                <button type="button" class="btn-link more" hidden>Voir plus ▾</button>
+            </div>
+        <?php endif; ?>
+        <?php if ($pros || $cons): ?>
+            <div class="proscons">
+                <?php if ($pros): ?>
+                    <div class="pros">
+                        <h4>👍 Points forts</h4>
+                        <ul><?php foreach ($pros as $point): ?><li><?= e($point) ?></li><?php endforeach; ?></ul>
+                    </div>
+                <?php endif; ?>
+                <?php if ($cons): ?>
+                    <div class="cons">
+                        <h4>👎 Points faibles</h4>
+                        <ul><?php foreach ($cons as $point): ?><li><?= e($point) ?></li><?php endforeach; ?></ul>
+                    </div>
+                <?php endif; ?>
+            </div>
         <?php endif; ?>
         <?php if (($game['comment'] ?? '') !== ''): ?>
             <p class="comment">💬 <strong><?= e($game['proposed_by'] ?? 'Mon commentaire') ?> :</strong> <?= nl2br(e($game['comment'])) ?></p>
