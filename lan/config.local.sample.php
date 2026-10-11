@@ -5,6 +5,8 @@
 return [
     'admin_password' => 'change-moi',
 
+    // Clé OpenAI : se règle aussi depuis la page Résultats (celle-ci est alors prioritaire)
     // 'openai_api_key' => 'sk-...',
+    // 'openai_model' => 'gpt-4o-mini',
     // 'youtube_api_key' => 'AIza...',
 ];

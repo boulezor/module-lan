@@ -106,6 +106,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash('success', "{$added} jeu" . ($added > 1 ? 'x ajoutés' : ' ajouté') . " au pot commun de « {$lan['title']} ».");
                 $back .= '&listes=1';
                 break;
+            case 'save_ai':
+                if (!empty($_POST['remove_key'])) {
+                    set_setting('openai_api_key', null);
+                    flash('success', 'Clé OpenAI supprimée.');
+                } elseif (($key = trim(post_string('openai_api_key'))) !== '') {
+                    set_setting('openai_api_key', $key);
+                    set_setting('openai_last_error', null);
+                    flash('success', 'Clé OpenAI enregistrée. Utilise « Tester » pour vérifier qu\'elle fonctionne.');
+                }
+                $model = clean_line(post_string('openai_model'), 60);
+                set_setting('openai_model', $model !== '' && $model !== (string) config('openai_model') ? $model : null);
+                if (empty($_POST['remove_key']) && trim(post_string('openai_api_key')) === '') {
+                    flash('success', 'Réglages enregistrés.');
+                }
+                break;
+            case 'test_ai':
+                if (openai_key() === '') {
+                    flash('error', 'Aucune clé OpenAI enregistrée.');
+                    break;
+                }
+                $test = openai_chat('Réponds uniquement : OK', 300);
+                if ($test['text'] !== null) {
+                    set_setting('openai_last_error', null);
+                    flash('success', 'OpenAI répond (modèle ' . openai_model() . ') : « ' . mb_substr($test['text'], 0, 60) . ' ». Les descriptions IA sont actives.');
+                } else {
+                    flash('error', 'OpenAI ne répond pas : ' . $test['error']);
+                }
+                break;
             case 'save_options':
                 $posted = is_array($_POST['options'] ?? null) ? $_POST['options'] : [];
                 $remaining = count(vote_options());
@@ -417,6 +445,45 @@ function admin_button(string $action, string $label, string $class = 'btn-second
             <?php endforeach; ?>
         </div>
     <?php endif; ?>
+<?php endif; ?>
+
+<h2>🤖 Descriptions automatiques (IA)</h2>
+<?php
+$configKey = (string) config('openai_api_key') !== '';
+$activeKey = openai_key();
+$lastError = setting('openai_last_error');
+?>
+<form method="post" class="card">
+    <?= csrf_field() ?>
+    <input type="hidden" name="action" value="save_ai">
+    <input type="hidden" name="lan" value="<?= $lanId ?>">
+    <?php if ($activeKey === ''): ?>
+        <p>Pas de clé : les descriptions viennent de <strong>Steam</strong>, sinon de <strong>Wikipédia</strong> (3-4 phrases).</p>
+    <?php else: ?>
+        <p>✔ Clé active <code>…<?= e(substr($activeKey, -4)) ?></code><?= $configKey ? ' (définie dans le fichier de configuration)' : '' ?> :
+            l'IA rédige 5 à 10 phrases avec points forts / faibles et pré-remplit le nombre de joueurs.</p>
+    <?php endif; ?>
+    <?php if ($lastError !== ''): ?>
+        <div class="alert alert-warn">Dernière erreur OpenAI : <?= e($lastError) ?></div>
+    <?php endif; ?>
+    <?php if (!$configKey): ?>
+        <label>Clé API OpenAI <small class="muted">(jamais réaffichée ; laisser vide pour garder la clé actuelle)</small>
+            <input type="password" name="openai_api_key" autocomplete="off" placeholder="sk-…">
+        </label>
+    <?php endif; ?>
+    <label>Modèle <small class="muted">(par défaut : <?= e((string) config('openai_model')) ?>)</small>
+        <input type="text" name="openai_model" maxlength="60" value="<?= e(openai_model()) ?>">
+    </label>
+    <p class="muted small">Conseil : fixe une limite de dépenses mensuelle sur ton compte OpenAI. Chaque description coûte une fraction de centime.</p>
+    <div class="form-actions">
+        <button type="submit">Enregistrer</button>
+        <?php if ($activeKey !== '' && !$configKey): ?>
+            <label class="inline-check"><input type="checkbox" name="remove_key" value="1"> Supprimer la clé</label>
+        <?php endif; ?>
+    </div>
+</form>
+<?php if ($activeKey !== ''): ?>
+    <p><?= admin_button('test_ai', '🔌 Tester la connexion à OpenAI', 'btn-secondary', null, null, $lanId) ?></p>
 <?php endif; ?>
 
 <h2>Options de vote</h2>

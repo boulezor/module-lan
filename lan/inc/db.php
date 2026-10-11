@@ -85,6 +85,11 @@ function db(): PDO
             UNIQUE (lan_id, normalized),
             UNIQUE (lan_id, steam_appid)
         );
+        -- Réglages modifiables depuis l'admin (clé OpenAI, modèle…)
+        CREATE TABLE IF NOT EXISTS settings (
+            key   TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
         -- Options de vote paramétrables (libellé + points)
         CREATE TABLE IF NOT EXISTS vote_options (
             id     INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -151,6 +156,23 @@ function db_rows(string $sql, array $params = []): array
 function db_exec(string $sql, array $params = []): void
 {
     db()->prepare($sql)->execute($params);
+}
+
+// --- Réglages -----------------------------------------------------------
+
+function setting(string $key, string $default = ''): string
+{
+    $value = db_row('SELECT value FROM settings WHERE key = ?', [$key]);
+    return $value === null ? $default : (string) $value['value'];
+}
+
+function set_setting(string $key, ?string $value): void
+{
+    if ($value === null) {
+        db_exec('DELETE FROM settings WHERE key = ?', [$key]);
+        return;
+    }
+    db_exec('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value', [$key, $value]);
 }
 
 // --- LAN ---------------------------------------------------------------

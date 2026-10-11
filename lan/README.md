@@ -31,15 +31,22 @@ Prérequis : PHP 8.1+ avec `pdo_sqlite` et `curl`.
 **Non.** Sans aucune clé, le module interroge :
 
 1. **Steam** (API publique de la boutique) : description en français, image, genres, modes multijoueur / LAN / coop, « Gratuit » ;
-2. **Wikipédia FR** si le jeu n'est pas sur Steam ;
+2. **Wikipédia FR** si le jeu n'est pas sur Steam : les 3-4 premières phrases, nettoyées (sans parenthèses ni notes) ;
 3. **YouTube** : lien vers une recherche « *nom du jeu* gameplay trailer ».
 
 La personne qui propose peut toujours corriger la description et les liens avant d'envoyer.
 
-Clés **optionnelles** dans `config.local.php` :
+**Avec une clé OpenAI** (facultatif), l'IA rédige une description de 5 à 10 phrases qui donne envie, avec
+👍 points forts et 👎 points faibles, et **pré-remplit le nombre de joueurs**. Coût : une fraction de centime par jeu
+(l'IA n'est appelée qu'à l'ajout d'un jeu).
 
-- `openai_api_key` : une IA réécrit la description en 2-3 phrases orientées LAN (genre, nombre de joueurs…) en s'appuyant sur les infos Steam/Wikipédia. Modèle réglable via `openai_model`. Coût négligeable (quelques centimes pour des centaines de jeux).
-- `youtube_api_key` (YouTube Data API v3, gratuite) : lien direct vers une vidéo au lieu d'une page de recherche.
+- La clé s'enregistre dans **Résultats › 🤖 Descriptions automatiques** (stockée dans la base, hors du web,
+  jamais réaffichée en entier), avec le choix du modèle et un bouton **Tester**.
+- Ou dans `private/lan/config.php` (`'openai_api_key' => 'sk-…'`) : elle est alors prioritaire et non modifiable depuis l'admin.
+- Conseil : fixer une limite de dépenses mensuelle sur le compte OpenAI.
+
+`youtube_api_key` (YouTube Data API v3, gratuite, dans le fichier de config) donne un lien direct vers une vidéo
+au lieu d'une page de recherche.
 
 ## Doublons
 

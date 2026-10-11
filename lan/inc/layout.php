@@ -77,7 +77,7 @@ function game_media(array $game, ?callable $footer = null): void
             <p class="tags"><?php foreach (explode(', ', $game['tags']) as $tag): ?><span><?= e($tag) ?></span><?php endforeach; ?></p>
         <?php endif; ?>
         <?php if ($game['description'] !== ''): ?>
-            <p class="desc"><?= e($game['description']) ?></p>
+            <p class="desc"><?= nl2br(e($game['description'])) ?></p>
         <?php endif; ?>
         <?php if (($game['comment'] ?? '') !== ''): ?>
             <p class="comment">💬 <strong><?= e($game['proposed_by'] ?? 'Mon commentaire') ?> :</strong> <?= nl2br(e($game['comment'])) ?></p>
