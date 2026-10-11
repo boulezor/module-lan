@@ -12,7 +12,7 @@ function game_from_post(): array
 {
     $game = [
         'title' => clean_line(post_string('title'), 100),
-        'description' => trim(mb_substr(post_string('description'), 0, 1000)),
+        'description' => trim(mb_substr(post_string('description'), 0, 2000)),
         'video_url' => clean_url(post_string('video_url')),
         'store_url' => clean_url(post_string('store_url')),
         'image_url' => clean_url(post_string('image_url')),
@@ -25,7 +25,7 @@ function game_from_post(): array
     if ($game['description'] === '' && normalize_key($game['title']) !== '') {
         $info = lookup_game($game['title']);
         $game['description'] = $info['description'];
-        foreach (['video_url', 'store_url', 'image_url', 'tags', 'steam_appid'] as $field) {
+        foreach (['video_url', 'store_url', 'image_url', 'tags', 'steam_appid', 'players'] as $field) {
             $game[$field] = $game[$field] ?: $info[$field];
         }
     }
@@ -68,7 +68,7 @@ function render_game_form(?array $game, array $openLans = []): void
         <input type="hidden" name="steam_appid" id="steam_appid" value="<?= e((string) $game['steam_appid']) ?>">
 
         <label>Description <small class="muted">(remplie automatiquement, modifiable)</small>
-            <textarea name="description" id="description" rows="4" maxlength="1000"><?= e($game['description']) ?></textarea>
+            <textarea name="description" id="description" rows="7" maxlength="2000"><?= e($game['description']) ?></textarea>
         </label>
 
         <label>Lien vidéo (YouTube…)
@@ -80,7 +80,7 @@ function render_game_form(?array $game, array $openLans = []): void
         </label>
 
         <label>Nombre de joueurs <small class="muted">(facultatif)</small>
-            <input type="text" name="players" maxlength="30" value="<?= e($game['players']) ?>" placeholder="ex. 2 à 8, jusqu'à 16, 4 par équipe…">
+            <input type="text" name="players" id="players" maxlength="30" value="<?= e($game['players']) ?>" placeholder="ex. 2 à 8, jusqu'à 16, 4 par équipe…">
         </label>
 
         <label>Mon commentaire <small class="muted">(facultatif — affiché avec ton nom si tu proposes le jeu à une LAN)</small>

@@ -38,8 +38,11 @@ return [
 
     // Optionnel : clé OpenAI pour rédiger des descriptions plus « LAN ».
     // Sans clé, la description vient de Steam puis de Wikipédia.
+    // (la clé peut aussi être enregistrée depuis la page Résultats ; celle du fichier est prioritaire)
     'openai_api_key' => '',
     'openai_model' => 'gpt-4o-mini',
+    'openai_timeout' => 30,
+    'openai_base_url' => 'https://api.openai.com/v1',
 
     // Optionnel : clé YouTube Data API v3 pour obtenir un lien direct vers une vidéo.
     // Sans clé, on donne un lien vers une recherche YouTube.

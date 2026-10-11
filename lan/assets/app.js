@@ -28,6 +28,8 @@ document.querySelectorAll('form[data-confirm]').forEach((form) => {
         $('image_url').value = s.image_url || '';
         $('tags').value = s.tags || '';
         $('steam_appid').value = s.steam_appid || '';
+        // Nombre de joueurs : on ne remplace pas ce que la personne a déjà tapé
+        if (s.players && !$('players').value.trim()) $('players').value = s.players;
 
         const img = $('preview-img');
         img.hidden = !s.image_url;

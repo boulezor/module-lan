@@ -4,11 +4,12 @@ declare(strict_types=1);
 /**
  * Recherche automatique d'informations sur un jeu, sans clé API obligatoire :
  *   1. Steam (description FR, image, genres, modes multijoueur/LAN)
- *   2. Wikipédia FR si Steam ne connaît pas le jeu
- *   3. OpenAI (optionnel) pour réécrire une description orientée LAN
+ *   2. Wikipédia FR si Steam ne connaît pas le jeu (3-4 premières phrases, nettoyées)
+ *   3. OpenAI (optionnel, clé dans l'admin ou la config) : description de 5 à 10 phrases
+ *      avec points forts / points faibles, et nombre de joueurs
  *   4. YouTube : vidéo directe si clé API, sinon lien de recherche
  *
- * @return array{title: string, description: string, tags: string, image_url: string,
+ * @return array{title: string, description: string, tags: string, image_url: string, players: string,
  *               video_url: string, store_url: string, steam_appid: ?int, source: string}
  */
 function lookup_game(string $title): array
@@ -23,6 +24,7 @@ function lookup_game(string $title): array
         'description' => '',
         'tags' => '',
         'image_url' => '',
+        'players' => '',
         'video_url' => '',
         'store_url' => '',
         'steam_appid' => null,
@@ -36,10 +38,13 @@ function lookup_game(string $title): array
         $result = array_replace($result, $wiki, ['source' => 'Wikipédia']);
     }
 
-    if (config('openai_api_key')) {
-        $ai = openai_describe($result['title'], $result['description'], $result['tags']);
+    $context = $result['context'] ?? $result['description'];
+    unset($result['context']);
+    if (openai_key() !== '') {
+        $ai = openai_describe($result['title'], $context, $result['tags']);
         if ($ai !== null) {
-            $result['description'] = $ai;
+            $result['description'] = $ai['description'];
+            $result['players'] = $ai['players'];
             $result['source'] = trim($result['source'] . ' + IA', ' +');
         }
     }
@@ -55,8 +60,18 @@ function lookup_game(string $title): array
 
 function http_json(string $url, ?array $postJson = null, array $headers = []): ?array
 {
+    return http_request($url, $postJson, $headers)['data'];
+}
+
+/**
+ * Requête HTTP JSON avec le détail de l'erreur (utile pour le bouton « Tester » de l'admin).
+ *
+ * @return array{data: ?array, error: string}
+ */
+function http_request(string $url, ?array $postJson = null, array $headers = [], ?int $timeout = null): array
+{
     if (!function_exists('curl_init')) {
-        return null;
+        return ['data' => null, 'error' => "L'extension PHP curl n'est pas installée."];
     }
     $ch = curl_init($url);
     $headers[] = 'Accept: application/json';
@@ -65,7 +80,7 @@ function http_json(string $url, ?array $postJson = null, array $headers = []): ?
         CURLOPT_FOLLOWLOCATION => true,
         CURLOPT_MAXREDIRS => 3,
         CURLOPT_CONNECTTIMEOUT => 4,
-        CURLOPT_TIMEOUT => (int) config('http_timeout'),
+        CURLOPT_TIMEOUT => $timeout ?? (int) config('http_timeout'),
         CURLOPT_USERAGENT => 'LanVote/1.0 (petit module de vote pour LAN party)',
     ]);
     if ($postJson !== null) {
@@ -77,13 +92,15 @@ function http_json(string $url, ?array $postJson = null, array $headers = []): ?
 
     $body = curl_exec($ch);
     $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    $curlError = curl_error($ch);
     curl_close($ch);
 
+    $data = is_string($body) ? json_decode($body, true) : null;
     if (!is_string($body) || $status < 200 || $status >= 300) {
-        return null;
+        $message = is_array($data) ? (string) ($data['error']['message'] ?? $data['message'] ?? '') : '';
+        return ['data' => null, 'error' => $curlError ?: trim("HTTP {$status} {$message}")];
     }
-    $data = json_decode($body, true);
-    return is_array($data) ? $data : null;
+    return is_array($data) ? ['data' => $data, 'error' => ''] : ['data' => null, 'error' => 'Réponse illisible.'];
 }
 
 function plain_text(string $html): string
@@ -181,37 +198,118 @@ function wikipedia_lookup(string $title): ?array
     }
 
     $summary = http_json('https://fr.wikipedia.org/api/rest_v1/page/summary/' . rawurlencode(str_replace(' ', '_', $pageTitle)));
-    $extract = (string) ($summary['extract'] ?? '');
+    $extract = clean_wiki_text((string) ($summary['extract'] ?? ''));
     if ($extract === '') {
         return null;
     }
 
     return [
         'title' => $title,
-        'description' => shorten($extract),
+        'description' => first_sentences($extract, 4, 600),
+        'context' => shorten($extract, 1500), // texte plus complet pour l'IA
         'image_url' => (string) ($summary['thumbnail']['source'] ?? ''),
         'store_url' => (string) ($summary['content_urls']['desktop']['page'] ?? ''),
     ];
 }
 
-function openai_describe(string $title, string $context, string $tags): ?string
+/** Retire de Wikipédia ce qui alourdit la lecture : parenthèses, notes [1], espaces en trop. */
+function clean_wiki_text(string $text): string
 {
-    $prompt = "Rédige en français une description courte (2 à 3 phrases, 350 caractères maximum) du jeu vidéo « {$title} » "
-        . "pour des amis qui votent pour leur prochaine LAN party : genre, principe du jeu et intérêt en multijoueur "
-        . "(nombre de joueurs si tu le connais). Texte brut, sans markdown. "
-        . "Si tu ne connais pas ce jeu et que le contexte ne suffit pas, réponds exactement : INCONNU.";
+    do {
+        $text = (string) preg_replace('/\s*\([^()]*\)/u', '', $text, -1, $count); // parenthèses (même imbriquées)
+    } while ($count > 0);
+    $text = (string) preg_replace('/\[[^\]]*\]/u', '', $text);
+    $text = (string) preg_replace('/\s+([,.;:])/u', '$1', $text);
+    return trim((string) preg_replace('/\s+/u', ' ', $text));
+}
+
+/** Les N premières phrases d'un texte (sans dépasser $maxLength caractères). */
+function first_sentences(string $text, int $count, int $maxLength): string
+{
+    $sentences = preg_split('/(?<=[.!?])\s+(?=[A-ZÀ-ÖØ-Þ«"])/u', $text) ?: [$text];
+    $result = '';
+    foreach (array_slice($sentences, 0, $count) as $sentence) {
+        if ($result !== '' && mb_strlen($result . ' ' . $sentence) > $maxLength) {
+            break;
+        }
+        $result = trim($result . ' ' . $sentence);
+    }
+    return shorten($result, $maxLength);
+}
+
+// --- OpenAI ------------------------------------------------------------
+
+/** Clé OpenAI : fichier de config en priorité, sinon celle enregistrée dans l'admin. */
+function openai_key(): string
+{
+    return (string) (config('openai_api_key') ?: setting('openai_api_key'));
+}
+
+function openai_model(): string
+{
+    return setting('openai_model') ?: (string) config('openai_model');
+}
+
+/**
+ * Appel minimal à l'API Chat Completions d'OpenAI.
+ *
+ * @return array{text: ?string, error: string}
+ */
+function openai_chat(string $prompt, int $maxTokens, bool $json = false): array
+{
+    $payload = [
+        'model' => openai_model(),
+        'messages' => [['role' => 'user', 'content' => $prompt]],
+        'max_completion_tokens' => $maxTokens,
+    ];
+    if ($json) {
+        $payload['response_format'] = ['type' => 'json_object'];
+    }
+    $response = http_request(rtrim((string) config('openai_base_url'), '/') . '/chat/completions', $payload,
+        ['Authorization: Bearer ' . openai_key()], (int) config('openai_timeout'));
+
+    $text = trim((string) ($response['data']['choices'][0]['message']['content'] ?? ''));
+    if ($text === '') {
+        $error = $response['error'] ?: 'Réponse vide (augmenter la limite de jetons ou changer de modèle).';
+        set_setting('openai_last_error', date('d/m H:i') . ' — ' . $error);
+        return ['text' => null, 'error' => $error];
+    }
+    return ['text' => $text, 'error' => ''];
+}
+
+/**
+ * Description « qui donne envie » (5 à 10 phrases, points forts / faibles) + nombre de joueurs.
+ *
+ * @return array{description: string, players: string}|null
+ */
+function openai_describe(string $title, string $context, string $tags): ?array
+{
+    $prompt = <<<TXT
+        Tu aides un groupe d'amis à choisir les jeux de leur prochaine LAN party.
+        Pour le jeu vidéo « {$title} », réponds en JSON avec exactement deux clés :
+        - "description" : texte en français de 5 à 10 phrases au total, qui donne envie d'y jouer en LAN :
+          un paragraphe qui présente le genre, le principe et l'intérêt à plusieurs ;
+          puis une ligne qui commence par « 👍 Points forts : » ;
+          puis une ligne qui commence par « 👎 Points faibles : » (honnête : prix, durée d'une partie, courbe d'apprentissage…).
+          Sépare ces trois parties par un saut de ligne. Pas de markdown.
+        - "players" : le nombre de joueurs en multijoueur, très court (ex. « 2 à 8 », « jusqu'à 16 », « 4 par équipe »),
+          ou une chaîne vide si tu n'es pas sûr.
+        Si tu ne connais pas ce jeu et que le contexte ne suffit pas, réponds {"description": "", "players": ""}.
+        TXT;
     if ($context !== '' || $tags !== '') {
-        $prompt .= "\n\nContexte : {$context}\nCatégories : {$tags}";
+        $prompt .= "\n\nContexte : {$context}\nCatégories Steam : {$tags}";
     }
 
-    $response = http_json('https://api.openai.com/v1/chat/completions', [
-        'model' => config('openai_model'),
-        'messages' => [['role' => 'user', 'content' => $prompt]],
-        'max_tokens' => 250,
-    ], ['Authorization: Bearer ' . config('openai_api_key')]);
-
-    $text = trim((string) ($response['choices'][0]['message']['content'] ?? ''));
-    return $text === '' || str_contains($text, 'INCONNU') ? null : $text;
+    $text = openai_chat($prompt, 1500, true)['text'];
+    $data = $text !== null ? json_decode($text, true) : null;
+    $description = trim((string) ($data['description'] ?? ''));
+    if ($description === '') {
+        return null;
+    }
+    return [
+        'description' => mb_substr($description, 0, 2000),
+        'players' => clean_line((string) ($data['players'] ?? ''), 30),
+    ];
 }
 
 function youtube_lookup(string $title): string
