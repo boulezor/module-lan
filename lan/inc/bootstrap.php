@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 define('APP_ROOT', dirname(__DIR__));
 
+// Nom de session propre à l'appli : plusieurs applis partagent le même sous-domaine
+session_name('lan_session');
 session_set_cookie_params([
     'httponly' => true,
     'samesite' => 'Lax',

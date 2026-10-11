@@ -6,8 +6,10 @@ function config(string $key): mixed
     static $config = null;
     if ($config === null) {
         $config = require APP_ROOT . '/config.php';
-        if (is_file(APP_ROOT . '/config.local.php')) {
-            $config = array_replace($config, require APP_ROOT . '/config.local.php');
+        foreach ([$config['private_dir'] . '/config.php', APP_ROOT . '/config.local.php'] as $override) {
+            if (is_file($override)) {
+                $config = array_replace($config, require $override);
+            }
         }
     }
     return $config[$key] ?? null;

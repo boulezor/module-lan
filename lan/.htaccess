@@ -1,0 +1,6 @@
+Options -Indexes
+
+# Fichiers de configuration jamais servis directement
+<FilesMatch "^config.*\.php$">
+    Require all denied
+</FilesMatch>

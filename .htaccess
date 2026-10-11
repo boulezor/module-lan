@@ -1,6 +1,6 @@
 Options -Indexes
 
-# Fichiers de configuration jamais servis directement
-<FilesMatch "^config.*\.php$">
+# Fichiers de documentation / config du dépôt : inutiles côté web
+<FilesMatch "\.(md|json)$|^config.*\.php$">
     Require all denied
 </FilesMatch>

@@ -81,8 +81,9 @@ if (!is_admin()):
     <h1>Résultats</h1>
     <?php if (!$configured): ?>
         <div class="alert alert-info">
-            Aucun mot de passe n'est configuré. Copie <code>config.local.sample.php</code> en
-            <code>config.local.php</code> et définis <code>admin_password</code>.
+            Aucun mot de passe n'est configuré. Crée le fichier
+            <code><?= e(config('private_dir')) ?>/config.php</code> avec <code>admin_password</code>
+            (modèle : <code>config.local.sample.php</code>).
         </div>
     <?php else: ?>
         <form method="post" class="card narrow">
@@ -131,6 +132,13 @@ function admin_button(string $action, string $label, string $class = 'btn-second
     <h1>Résultats</h1>
     <?= admin_button('logout', 'Se déconnecter') ?>
 </div>
+
+<?php if (str_starts_with((string) realpath(dirname(config('db_path'))), (string) realpath(APP_ROOT))): ?>
+    <div class="alert alert-warn">
+        ⚠️ La base de données est dans le dossier web (<code><?= e(config('db_path')) ?></code>).
+        Normal en local ; sur le serveur, vérifie que le dossier <code>private</code> de Plesk existe.
+    </div>
+<?php endif; ?>
 
 <details class="card"<?= $lans ? '' : ' open' ?>>
     <summary>➕ Créer une LAN</summary>

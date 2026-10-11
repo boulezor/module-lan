@@ -1,88 +1,51 @@
-# Vote des jeux LAN
+# Mes applis
 
-Petit module PHP pour choisir les jeux d'une LAN party entre amis.
+Mes petites applis web, **une par dossier**, publiées automatiquement sur **https://tbxm.be**
+(serveur Plesk chez OVH) à chaque mise à jour de la branche `main`.
 
-**Principe** : chacun tient sa **liste personnelle** de jeux. Quand l'organisateur crée une **LAN** (une date),
-chacun envoie des jeux de sa liste dans le **pot commun** de cette LAN, puis tout le monde **vote**.
+| Dossier | Adresse | Appli |
+|---------|---------|-------|
+| [`lan/`](lan/) | https://tbxm.be/lan/ | Vote des jeux LAN : listes perso, pot commun et vote |
 
-| Page | Accès | Rôle |
-|------|-------|------|
-| `index.php` — **LAN** | public | Prochaine LAN (date, état) et son pot commun. |
-| `connexion.php` | public | Connexion / création de compte (pseudo, email, mot de passe). |
-| `ma-liste.php` — **Ma liste** | compte | Ajouter, modifier, supprimer ses jeux (description, image, vidéo, lien remplis automatiquement) et les proposer au pot commun d'une LAN. |
-| `voter.php` — **Voter** | compte | Un vote par personne et par LAN, modifiable tant que les votes sont ouverts. |
-| `resultats.php` — **Résultats** | mot de passe organisateur | Créer les LAN, ouvrir/fermer propositions et votes, classement, gestion des comptes. |
+La racine (https://tbxm.be/) liste toutes les applis (chaque dossier contenant un `app.json`).
 
-## Installation
+## Mise en place sur Plesk (déjà faite)
 
-Prérequis : PHP 8.1+ avec les extensions `pdo_sqlite` et `curl` (présentes chez presque tous les hébergeurs).
+- Domaine `tbxm.be`, PHP 8.2+ (FPM), certificat Let's Encrypt.
+- *Git* : dépôt `https://github.com/boulezor/module-lan` (public, donc pas de clé), branche **`main`**,
+  déploiement automatique vers `/httpdocs`.
+- Pour que chaque push se déploie tout seul : copier l'**URL du webhook** affichée par Plesk
+  (icône réglages du dépôt Git) dans GitHub › dépôt › *Settings › Webhooks › Add webhook*.
+  Sans webhook, cliquer sur *Exécuter pull* puis *Déployer maintenant* dans Plesk.
 
-1. Copier les fichiers sur l'hébergement (ex. dans un dossier `/lan/`).
-2. Copier `config.local.sample.php` en `config.local.php` et définir `admin_password`.
-3. Choisir où stocker la base SQLite (`db_path`), idéalement **hors du dossier web** ; sinon le dossier `data/` doit être accessible en écriture par PHP.
+**Pas de base MySQL** : chaque appli utilise un fichier SQLite qu'elle crée toute seule dans
+`/var/www/vhosts/tbxm.be/private/<appli>/` (hors du web, conservé entre les déploiements et inclus dans les
+sauvegardes Plesk).
 
-Rien d'autre : pas de base MySQL, pas de Composer, pas de build.
-
-## Mise en ligne sur Plesk (déploiement automatique depuis GitHub)
-
-1. **Domaine** : dans Plesk, créer le (sous-)domaine, choisir PHP 8.2+ (FPM) dans *Paramètres PHP* et activer le certificat Let's Encrypt.
-2. **Git** : *Sites Web & Domaines › Git* (extension « Git », à installer depuis *Extensions* si absente).
-   - Dépôt distant : `git@github.com:boulezor/module-lan.git` et la branche à déployer.
-   - Plesk affiche une **clé SSH publique** : l'ajouter dans GitHub › dépôt › *Settings › Deploy keys* (lecture seule).
-   - Mode de déploiement **automatique**, chemin du serveur : `httpdocs` (ou `httpdocs/lan`).
-   - Copier l'**URL du webhook** donnée par Plesk dans GitHub › *Settings › Webhooks* : chaque push sur la branche met le site à jour.
-3. **Base hors du web** : avec le gestionnaire de fichiers, créer `private/lan/` (à côté de `httpdocs`, pas dedans).
-4. **Configuration** : dans le dossier déployé, créer `config.local.php` (à partir de `config.local.sample.php`) avec le mot de passe
-   organisateur et `'db_path' => '/var/www/vhosts/<domaine>/private/lan/lan.sqlite'`.
-   Ce fichier et la base ne sont pas dans Git : les déploiements suivants n'y touchent pas.
-
-⚠️ Plesk fait servir les fichiers statiques directement par nginx, **sans appliquer les `.htaccess`**.
-D'où la base dans `private/`. Par sécurité, ajouter aussi dans *Paramètres Apache & nginx › Directives nginx supplémentaires* :
+Sécurité en plus (facultatif) — *Paramètres Apache & nginx › Directives nginx supplémentaires* :
 
 ```nginx
-location ~ /(inc|data)/ { deny all; }
-location ~ \.sqlite { deny all; }
+location ~ /(inc|data|private)/ { deny all; }
+location ~ \.(sqlite|sqlite-wal|sqlite-shm|md|json)$ { deny all; }
 ```
 
-## Description automatique : faut-il une clé API ?
+## Ajouter / configurer une appli
 
-**Non.** Sans aucune clé, le module interroge :
+- Les nouvelles applis arrivent par Git (Claude Code crée le dossier et pousse) : rien à faire dans Plesk.
+- Si l'appli a des secrets (mot de passe, clé API) : créer **une fois** `private/<appli>/config.php`
+  avec le gestionnaire de fichiers Plesk, à partir du `config.local.sample.php` de l'appli.
 
-1. **Steam** (API publique de la boutique) : description en français, image, genres, modes multijoueur / LAN / coop, « Gratuit » ;
-2. **Wikipédia FR** si le jeu n'est pas sur Steam ;
-3. **YouTube** : lien vers une recherche « *nom du jeu* gameplay trailer ».
+Pour l'appli LAN : `/var/www/vhosts/tbxm.be/private/lan/config.php` avec
 
-La personne qui propose peut toujours corriger la description et les liens avant d'envoyer.
+```php
+<?php
+return ['admin_password' => 'mon-mot-de-passe'];
+```
 
-Clés **optionnelles** dans `config.local.php` :
+## Développement en local
 
-- `openai_api_key` : une IA réécrit la description en 2-3 phrases orientées LAN (genre, nombre de joueurs…) en s'appuyant sur les infos Steam/Wikipédia. Modèle réglable via `openai_model`. Coût négligeable (quelques centimes pour des centaines de jeux).
-- `youtube_api_key` (YouTube Data API v3, gratuite) : lien direct vers une vidéo au lieu d'une page de recherche.
+```bash
+php -S localhost:8000      # depuis la racine du dépôt, puis http://localhost:8000/
+```
 
-## Doublons
-
-Les noms sont comparés sans majuscules, accents ni ponctuation (« Counter-Strike 2 » = « counter strike 2 »),
-et deux jeux pointant vers la même fiche Steam sont considérés comme identiques (« AoE 2 » / « Age of Empires II »).
-
-- **Dans sa liste** : on ne peut pas ajouter deux fois le même jeu ; un nom proche affiche un avertissement.
-- **Dans le pot commun** : si le jeu a déjà été proposé pour cette LAN, la proposition est refusée et on voit qui l'a proposé.
-  Le jeu reste dans la liste perso, et la liste affiche « Déjà proposé par X ».
-
-## Liste perso et pot commun
-
-- Le pot commun garde une copie du jeu : supprimer un jeu de sa liste ne le retire pas d'une LAN.
-- Modifier la description ou les liens d'un jeu de sa liste met aussi à jour sa fiche dans les LAN encore ouvertes aux propositions.
-- Tant que les propositions sont ouvertes, chacun peut retirer un jeu qu'il a proposé (les votes pour ce jeu sont alors supprimés).
-
-## Comptes
-
-Volontairement simples, c'est pour des amis : pseudo + email + mot de passe (4 caractères minimum), sans vérification d'email.
-On reste connecté sur l'appareil (cookie d'un an). Mot de passe oublié : l'organisateur en génère un nouveau depuis la page Résultats.
-Chacun peut changer son mot de passe dans « Ma liste › Mon compte ».
-
-## Déroulement
-
-1. Chacun crée son compte et remplit sa liste (à tout moment, même sans LAN prévue).
-2. L'organisateur crée une LAN sur la page Résultats (date + nom facultatif) : propositions et votes sont ouverts.
-3. Chacun propose des jeux de sa liste, puis vote.
-4. L'organisateur ferme les propositions puis les votes et consulte le classement.
+En local, chaque appli lit `config.local.php` et range ses données dans son dossier `data/`.
