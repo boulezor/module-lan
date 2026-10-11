@@ -1,6 +1,12 @@
 <?php
 declare(strict_types=1);
 
+/** URL d'un fichier statique avec sa version (date de modification) pour éviter les vieux fichiers en cache. */
+function asset(string $path): string
+{
+    return e($path . '?v=' . (@filemtime(APP_ROOT . '/' . $path) ?: '1'));
+}
+
 function page_header(string $title, string $active): void
 {
     $nav = [
@@ -17,7 +23,7 @@ function page_header(string $title, string $active): void
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= e($title) ?> · <?= e(config('site_title')) ?></title>
-    <link rel="stylesheet" href="assets/style.css">
+    <link rel="stylesheet" href="<?= asset('assets/style.css') ?>">
 </head>
 <body>
 <header class="site-header">
@@ -50,7 +56,7 @@ function page_footer(): void
 {
     ?>
 </main>
-<script src="assets/app.js"></script>
+<script src="<?= asset('assets/app.js') ?>"></script>
 </body>
 </html>
     <?php
@@ -95,6 +101,9 @@ function game_media(array $game, ?callable $footer = null): void
         <h3><?= e($game['title']) ?>
             <?php if (($game['players'] ?? '') !== ''): ?><span class="players">👥 <?= e(players_label($game['players'])) ?></span><?php endif; ?>
         </h3>
+        <?php if (($game['comment'] ?? '') !== ''): ?>
+            <p class="comment">💬 <strong><?= e($game['proposed_by'] ?? 'Mon commentaire') ?> :</strong> <?= nl2br(e($game['comment'])) ?></p>
+        <?php endif; ?>
         <?php if ($game['tags'] !== ''): ?>
             <p class="tags"><?php foreach (explode(', ', $game['tags']) as $tag): ?><span><?= e($tag) ?></span><?php endforeach; ?></p>
         <?php endif; ?>
@@ -107,22 +116,19 @@ function game_media(array $game, ?callable $footer = null): void
         <?php endif; ?>
         <?php if ($pros || $cons): ?>
             <div class="proscons">
-                <?php if ($pros): ?>
-                    <div class="pros">
-                        <h4>👍 Points forts</h4>
-                        <ul><?php foreach ($pros as $point): ?><li><?= e($point) ?></li><?php endforeach; ?></ul>
-                    </div>
-                <?php endif; ?>
                 <?php if ($cons): ?>
                     <div class="cons">
                         <h4>👎 Points faibles</h4>
                         <ul><?php foreach ($cons as $point): ?><li><?= e($point) ?></li><?php endforeach; ?></ul>
                     </div>
                 <?php endif; ?>
+                <?php if ($pros): ?>
+                    <div class="pros">
+                        <h4>👍 Points forts</h4>
+                        <ul><?php foreach ($pros as $point): ?><li><?= e($point) ?></li><?php endforeach; ?></ul>
+                    </div>
+                <?php endif; ?>
             </div>
-        <?php endif; ?>
-        <?php if (($game['comment'] ?? '') !== ''): ?>
-            <p class="comment">💬 <strong><?= e($game['proposed_by'] ?? 'Mon commentaire') ?> :</strong> <?= nl2br(e($game['comment'])) ?></p>
         <?php endif; ?>
         <p class="links">
             <?php if ($game['video_url'] !== ''): ?><a href="<?= e($game['video_url']) ?>" target="_blank" rel="noopener">▶ Vidéo</a><?php endif; ?>
