@@ -10,12 +10,13 @@ declare(strict_types=1);
  *   4. YouTube : vidéo directe si clé API, sinon lien de recherche
  *
  * @return array{title: string, description: string, tags: string, image_url: string, players: string,
+ *               pros: string, cons: string,
  *               video_url: string, store_url: string, steam_appid: ?int, source: string}
  */
-function lookup_game(string $title): array
+function lookup_game(string $title, bool $useCache = true): array
 {
     $cacheKey = normalize_key($title);
-    if (isset($_SESSION['lookup_cache'][$cacheKey])) {
+    if ($useCache && isset($_SESSION['lookup_cache'][$cacheKey])) {
         return $_SESSION['lookup_cache'][$cacheKey];
     }
 
@@ -25,6 +26,8 @@ function lookup_game(string $title): array
         'tags' => '',
         'image_url' => '',
         'players' => '',
+        'pros' => '',
+        'cons' => '',
         'video_url' => '',
         'store_url' => '',
         'steam_appid' => null,
@@ -43,8 +46,7 @@ function lookup_game(string $title): array
     if (openai_key() !== '') {
         $ai = openai_describe($result['title'], $context, $result['tags']);
         if ($ai !== null) {
-            $result['description'] = $ai['description'];
-            $result['players'] = $ai['players'];
+            $result = array_replace($result, $ai);
             $result['source'] = trim($result['source'] . ' + IA', ' +');
         }
     }
@@ -278,23 +280,22 @@ function openai_chat(string $prompt, int $maxTokens, bool $json = false): array
 }
 
 /**
- * Description « qui donne envie » (5 à 10 phrases, points forts / faibles) + nombre de joueurs.
+ * Description « qui donne envie » (5 à 10 phrases), points forts / faibles et nombre de joueurs.
  *
- * @return array{description: string, players: string}|null
+ * @return array{description: string, pros: string, cons: string, players: string}|null
  */
 function openai_describe(string $title, string $context, string $tags): ?array
 {
     $prompt = <<<TXT
         Tu aides un groupe d'amis à choisir les jeux de leur prochaine LAN party.
-        Pour le jeu vidéo « {$title} », réponds en JSON avec exactement deux clés :
-        - "description" : texte en français de 5 à 10 phrases au total, qui donne envie d'y jouer en LAN :
-          un paragraphe qui présente le genre, le principe et l'intérêt à plusieurs ;
-          puis une ligne qui commence par « 👍 Points forts : » ;
-          puis une ligne qui commence par « 👎 Points faibles : » (honnête : prix, durée d'une partie, courbe d'apprentissage…).
-          Sépare ces trois parties par un saut de ligne. Pas de markdown.
+        Pour le jeu vidéo « {$title} », réponds en JSON avec exactement ces clés :
+        - "description" : texte en français de 5 à 10 phrases qui donne envie d'y jouer en LAN :
+          genre, principe, ambiance et intérêt à plusieurs. Texte brut, sans markdown, sans liste.
+        - "pros" : tableau de 3 à 5 points forts pour une LAN, chacun en quelques mots (ex. « Parties rapides de 5 minutes »).
+        - "cons" : tableau de 2 à 4 points faibles honnêtes, chacun en quelques mots (prix, durée, courbe d'apprentissage…).
         - "players" : le nombre de joueurs en multijoueur, très court (ex. « 2 à 8 », « jusqu'à 16 », « 4 par équipe »),
           ou une chaîne vide si tu n'es pas sûr.
-        Si tu ne connais pas ce jeu et que le contexte ne suffit pas, réponds {"description": "", "players": ""}.
+        Si tu ne connais pas ce jeu et que le contexte ne suffit pas, réponds {"description": "", "pros": [], "cons": [], "players": ""}.
         TXT;
     if ($context !== '' || $tags !== '') {
         $prompt .= "\n\nContexte : {$context}\nCatégories Steam : {$tags}";
@@ -306,24 +307,63 @@ function openai_describe(string $title, string $context, string $tags): ?array
     if ($description === '') {
         return null;
     }
+    $points = fn($list) => clean_points(implode("\n", array_map('strval', is_array($list) ? $list : [])));
     return [
         'description' => mb_substr($description, 0, 2000),
+        'pros' => $points($data['pros'] ?? []),
+        'cons' => $points($data['cons'] ?? []),
         'players' => clean_line((string) ($data['players'] ?? ''), 30),
     ];
 }
 
+/** Clé YouTube Data API : fichier de config en priorité, sinon celle enregistrée dans l'admin. */
+function youtube_key(): string
+{
+    return (string) (config('youtube_api_key') ?: setting('youtube_api_key'));
+}
+
+/**
+ * Bande-annonce officielle sur YouTube (API YouTube Data v3, gratuite avec une clé Google).
+ *
+ * @return array{url: ?string, title: string, error: string}
+ */
+function youtube_find_trailer(string $title): array
+{
+    $response = http_request(rtrim((string) config('youtube_base_url'), '/') . '/search?' . http_build_query([
+        'part' => 'snippet', 'type' => 'video', 'maxResults' => 5, 'relevanceLanguage' => 'fr',
+        'q' => $title . ' official trailer', 'key' => youtube_key(),
+    ]));
+    $items = $response['data']['items'] ?? [];
+    if (!$items) {
+        if ($response['error'] !== '') {
+            set_setting('youtube_last_error', date('d/m H:i') . ' — ' . $response['error']);
+        }
+        return ['url' => null, 'title' => '', 'error' => $response['error'] ?: 'Aucune vidéo trouvée.'];
+    }
+    // De préférence une vidéo dont le titre parle de « trailer » / « bande-annonce »
+    $best = $items[0];
+    foreach ($items as $item) {
+        if (preg_match('/trailer|bande[- ]annonce/i', (string) ($item['snippet']['title'] ?? ''))) {
+            $best = $item;
+            break;
+        }
+    }
+    $videoId = (string) ($best['id']['videoId'] ?? '');
+    if (!preg_match('/^[A-Za-z0-9_-]{11}$/', $videoId)) {
+        return ['url' => null, 'title' => '', 'error' => 'Réponse YouTube inattendue.'];
+    }
+    return [
+        'url' => 'https://www.youtube.com/watch?v=' . $videoId,
+        'title' => html_entity_decode((string) ($best['snippet']['title'] ?? ''), ENT_QUOTES, 'UTF-8'),
+        'error' => '',
+    ];
+}
+
+/** Lien vidéo : la bande-annonce trouvée sur YouTube, sinon un lien de recherche YouTube. */
 function youtube_lookup(string $title): string
 {
-    $key = (string) config('youtube_api_key');
-    if ($key !== '') {
-        $search = http_json('https://www.googleapis.com/youtube/v3/search?' . http_build_query([
-            'part' => 'snippet', 'type' => 'video', 'maxResults' => 1,
-            'q' => $title . ' gameplay trailer', 'key' => $key,
-        ]));
-        $videoId = $search['items'][0]['id']['videoId'] ?? null;
-        if (is_string($videoId) && $videoId !== '') {
-            return 'https://www.youtube.com/watch?v=' . rawurlencode($videoId);
-        }
+    if (youtube_key() !== '' && ($url = youtube_find_trailer($title)['url'])) {
+        return $url;
     }
     return youtube_search_url($title);
 }

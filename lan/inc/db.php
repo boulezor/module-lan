@@ -52,6 +52,8 @@ function db(): PDO
             store_url   TEXT NOT NULL DEFAULT '',
             comment     TEXT NOT NULL DEFAULT '',
             players     TEXT NOT NULL DEFAULT '',
+            pros        TEXT NOT NULL DEFAULT '',   -- points forts, un par ligne
+            cons        TEXT NOT NULL DEFAULT '',   -- points faibles, un par ligne
             created_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             UNIQUE (user_id, normalized)
         );
@@ -81,6 +83,8 @@ function db(): PDO
             store_url    TEXT NOT NULL DEFAULT '',
             comment      TEXT NOT NULL DEFAULT '',
             players      TEXT NOT NULL DEFAULT '',
+            pros         TEXT NOT NULL DEFAULT '',
+            cons         TEXT NOT NULL DEFAULT '',
             created_at   TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             UNIQUE (lan_id, normalized),
             UNIQUE (lan_id, steam_appid)
@@ -114,6 +118,10 @@ function db(): PDO
     add_missing_column($pdo, 'proposals', 'comment', "TEXT NOT NULL DEFAULT ''");
     add_missing_column($pdo, 'list_games', 'players', "TEXT NOT NULL DEFAULT ''");
     add_missing_column($pdo, 'proposals', 'players', "TEXT NOT NULL DEFAULT ''");
+    foreach (['list_games', 'proposals'] as $table) {
+        add_missing_column($pdo, $table, 'pros', "TEXT NOT NULL DEFAULT ''");
+        add_missing_column($pdo, $table, 'cons', "TEXT NOT NULL DEFAULT ''");
+    }
     add_missing_column($pdo, 'lans', 'starts_at', "TEXT NOT NULL DEFAULT ''");
     add_missing_column($pdo, 'lans', 'ends_at', "TEXT NOT NULL DEFAULT ''");
     $pdo->exec("UPDATE lans SET starts_at = lan_date WHERE starts_at = ''");
@@ -330,11 +338,11 @@ function propose_to_lan(array $user, array $game, array $lan, bool $force = fals
     }
     try {
         db_exec('INSERT INTO proposals (lan_id, user_id, list_game_id, title, normalized, steam_appid,
-                                        description, tags, image_url, video_url, store_url, comment, players)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
+                                        description, tags, image_url, video_url, store_url, comment, players, pros, cons)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
             $lan['id'], $user['id'], $game['id'], $game['title'], $game['normalized'], $steamAppId,
             $game['description'], $game['tags'], $game['image_url'], $game['video_url'], $game['store_url'], $game['comment'],
-            $game['players'],
+            $game['players'], $game['pros'], $game['cons'],
         ]);
     } catch (PDOException) {
         return [false, "« {$game['title']} » vient d'être proposé par quelqu'un d'autre."];

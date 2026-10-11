@@ -121,6 +121,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     flash('success', 'Réglages enregistrés.');
                 }
                 break;
+            case 'save_youtube':
+                if (!empty($_POST['remove_key'])) {
+                    set_setting('youtube_api_key', null);
+                    flash('success', 'Clé YouTube supprimée.');
+                } elseif (($key = trim(post_string('youtube_api_key'))) !== '') {
+                    set_setting('youtube_api_key', $key);
+                    set_setting('youtube_last_error', null);
+                    flash('success', 'Clé YouTube enregistrée. Utilise « Tester » pour vérifier qu\'elle fonctionne.');
+                }
+                break;
+            case 'test_youtube':
+                if (youtube_key() === '') {
+                    flash('error', 'Aucune clé YouTube enregistrée.');
+                    break;
+                }
+                $test = youtube_find_trailer('Rocket League');
+                if ($test['url']) {
+                    set_setting('youtube_last_error', null);
+                    flash('success', "YouTube répond : « {$test['title']} » ({$test['url']}). Les bandes-annonces sont actives.");
+                } else {
+                    flash('error', 'YouTube ne répond pas : ' . $test['error']);
+                }
+                break;
             case 'test_ai':
                 if (openai_key() === '') {
                     flash('error', 'Aucune clé OpenAI enregistrée.');
@@ -484,6 +507,62 @@ $lastError = setting('openai_last_error');
 </form>
 <?php if ($activeKey !== ''): ?>
     <p><?= admin_button('test_ai', '🔌 Tester la connexion à OpenAI', 'btn-secondary', null, null, $lanId) ?></p>
+<?php endif; ?>
+
+<h2>▶ Bandes-annonces YouTube</h2>
+<?php
+$ytConfigKey = (string) config('youtube_api_key') !== '';
+$ytKey = youtube_key();
+$ytError = setting('youtube_last_error');
+?>
+<form method="post" class="card">
+    <?= csrf_field() ?>
+    <input type="hidden" name="action" value="save_youtube">
+    <input type="hidden" name="lan" value="<?= $lanId ?>">
+    <?php if ($ytKey === ''): ?>
+        <p>Pas de clé : le lien « Vidéo » ouvre une recherche YouTube « <em>nom du jeu</em> official trailer ».</p>
+    <?php else: ?>
+        <p>✔ Clé active <code>…<?= e(substr($ytKey, -4)) ?></code><?= $ytConfigKey ? ' (définie dans le fichier de configuration)' : '' ?> :
+            le lien « Vidéo » mène directement à la bande-annonce officielle (sinon, recherche YouTube).</p>
+    <?php endif; ?>
+    <?php if ($ytError !== ''): ?>
+        <div class="alert alert-warn">Dernière erreur YouTube : <?= e($ytError) ?></div>
+    <?php endif; ?>
+    <?php if (!$ytConfigKey): ?>
+        <label>Clé API YouTube Data v3 <small class="muted">(gratuite ; jamais réaffichée ; laisser vide pour garder la clé actuelle)</small>
+            <input type="password" name="youtube_api_key" autocomplete="off" placeholder="AIza…">
+        </label>
+        <div class="form-actions">
+            <button type="submit">Enregistrer</button>
+            <?php if ($ytKey !== ''): ?>
+                <label class="inline-check"><input type="checkbox" name="remove_key" value="1"> Supprimer la clé</label>
+            <?php endif; ?>
+        </div>
+    <?php endif; ?>
+</form>
+<?php if ($ytKey !== ''): ?>
+    <p><?= admin_button('test_youtube', '🔌 Tester la recherche YouTube', 'btn-secondary', null, null, $lanId) ?></p>
+<?php endif; ?>
+
+<?php if ($lan && $ranking): ?>
+    <div class="card regen" id="regen"
+         data-ids="<?= e(json_encode(array_map(fn($g) => (int) $g['id'], $ranking))) ?>"
+         data-titles="<?= e(json_encode(array_column($ranking, 'title'), JSON_UNESCAPED_UNICODE)) ?>"
+         data-csrf="<?= e(csrf_token()) ?>">
+        <p><strong>🔄 Régénérer les fiches du pot commun de « <?= e($lan['title']) ?> »</strong> (<?= count($ranking) ?> jeux)</p>
+        <p class="muted small">
+            Refait la recherche pour chaque jeu<?= $activeKey !== '' ? ' avec l\'IA' : ' (Steam / Wikipédia : pas de clé IA)' ?> :
+            description, points forts et points faibles sont remplacés. Le commentaire perso n'est jamais modifié ;
+            le nombre de joueurs, l'image et les liens ne sont complétés que s'ils sont vides
+            (un lien de recherche YouTube est remplacé par la bande-annonce si une clé YouTube est active).
+            La fiche dans la liste perso du propriétaire est mise à jour aussi.
+        </p>
+        <button type="button" class="btn-secondary" data-confirm-text="Régénérer les fiches des <?= count($ranking) ?> jeux du pot commun ?">Régénérer les <?= count($ranking) ?> fiches</button>
+        <div class="regen-progress" hidden>
+            <div class="bar"><span style="width: 0%"></span></div>
+            <p class="regen-status small"></p>
+        </div>
+    </div>
 <?php endif; ?>
 
 <h2>Options de vote</h2>

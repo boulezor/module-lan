@@ -83,7 +83,6 @@ form.inline { display: inline; }
 .desc { margin: 0 0 8px; color: #cfd3ef; }
 .links { display: flex; flex-wrap: wrap; gap: 12px; margin: 0; font-size: .9rem; }
 .compact .game-img { width: 120px; }
-.compact .desc { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; font-size: .9rem; }
 
 .selectable { cursor: pointer; position: relative; }
 .selectable input[type=radio] { width: 22px; height: 22px; margin: 4px 0 0; accent-color: var(--accent); flex-shrink: 0; }
@@ -198,3 +197,21 @@ details.small summary { cursor: pointer; font-size: .85rem; margin-bottom: 6px; 
 .pick-list li.in-pot { opacity: .55; }
 .pick-list input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); }
 .lists-tools { display: flex; gap: 12px; margin: 0 0 8px; }
+
+/* --- Description repliable + tableau points forts / faibles --- */
+.desc-wrap { margin: 0 0 8px; }
+.desc-wrap .desc { margin: 0; }
+.desc.clamp { display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; }
+.desc.clamp.expanded { display: block; -webkit-line-clamp: unset; overflow: visible; }
+.more { padding: 2px 0; font-size: .85rem; color: var(--accent-2); }
+.proscons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 10px; }
+.proscons > div { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; }
+.proscons .pros { border-top: 3px solid var(--accent-2); }
+.proscons .cons { border-top: 3px solid var(--danger); }
+.proscons h4 { margin: 0 0 4px; font-size: .85rem; }
+.proscons ul { margin: 0; padding-left: 18px; font-size: .88rem; color: #cfd3ef; }
+.proscons-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 600px) {
+    .proscons, .proscons-fields { grid-template-columns: 1fr; }
+}
+.more:hover { color: var(--accent-2); filter: brightness(1.2); }
