@@ -98,18 +98,6 @@ foreach ($openLans as $lan) {
     $potsByLan[$lan['id']] = lan_proposals((int) $lan['id']);
 }
 
-/** Proposition du pot commun qui correspond à ce jeu (même nom ou même fiche Steam). */
-function matching_proposal(array $pot, array $game): ?array
-{
-    foreach ($pot as $proposal) {
-        if ($proposal['normalized'] === $game['normalized']
-            || ($game['steam_appid'] !== null && (int) $proposal['steam_appid'] === (int) $game['steam_appid'])) {
-            return $proposal;
-        }
-    }
-    return null;
-}
-
 page_header('Ma liste', 'liste');
 ?>
 <h1>Ma liste de jeux</h1>

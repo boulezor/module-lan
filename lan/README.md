@@ -75,6 +75,8 @@ Chacun peut changer son mot de passe dans « Ma liste › Mon compte ».
 
 1. Chacun crée son compte et remplit sa liste (à tout moment, même sans LAN prévue).
 2. L'organisateur crée une LAN sur la page Résultats (nom facultatif, début et fin) : les propositions sont ouvertes.
-3. Chacun propose des jeux de sa liste.
+3. Chacun propose des jeux de sa liste (un nouveau jeu est proposé par défaut à la prochaine LAN ouverte).
+   L'organisateur peut aussi parcourir **tous les jeux de toutes les listes** (page Résultats) et cocher ceux à ajouter au pot,
+   même une fois les propositions fermées.
 4. L'organisateur ferme les propositions et ouvre les votes ; chacun note tous les jeux.
 5. L'organisateur ferme les votes et consulte le classement.

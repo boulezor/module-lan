@@ -91,8 +91,8 @@ function render_game_form(?array $game, array $openLans = []): void
             <label>Proposer aussi pour
                 <select name="propose_lan">
                     <option value="">— garder seulement dans ma liste —</option>
-                    <?php foreach ($openLans as $lan): ?>
-                        <option value="<?= (int) $lan['id'] ?>"><?= e($lan['title']) ?> (<?= e(fr_date($lan['starts_at'])) ?>)</option>
+                    <?php foreach ($openLans as $i => $lan): ?>
+                        <option value="<?= (int) $lan['id'] ?>"<?= $i === 0 ? ' selected' : '' ?>><?= e($lan['title']) ?> (<?= e(fr_date($lan['starts_at'])) ?>)</option>
                     <?php endforeach; ?>
                 </select>
             </label>

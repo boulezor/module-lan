@@ -88,6 +88,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 db_exec('DELETE FROM lan_ratings WHERE lan_id = ? AND user_id = ?', [(int) post_string('lan'), $id]);
                 flash('success', 'Vote supprimé : la personne peut revoter.');
                 break;
+            case 'add_from_lists':
+                $lan = find_lan($id);
+                $ids = array_map('intval', is_array($_POST['games'] ?? null) ? $_POST['games'] : []);
+                if (!$lan || !$ids) {
+                    flash('warn', 'Aucun jeu sélectionné.');
+                    break;
+                }
+                $added = 0;
+                foreach ($ids as $gameId) {
+                    $game = db_row('SELECT * FROM list_games WHERE id = ?', [$gameId]);
+                    if ($game && ($owner = find_user((int) $game['user_id']))) {
+                        [$ok, $message] = propose_to_lan($owner, $game, $lan, true);
+                        $ok ? $added++ : flash('warn', $message);
+                    }
+                }
+                flash('success', "{$added} jeu" . ($added > 1 ? 'x ajoutés' : ' ajouté') . " au pot commun de « {$lan['title']} ».");
+                $back .= '&listes=1';
+                break;
             case 'save_options':
                 $posted = is_array($_POST['options'] ?? null) ? $_POST['options'] : [];
                 $remaining = count(vote_options());
@@ -183,6 +201,8 @@ $ballots = db_rows('SELECT u.id, u.name, COUNT(r.id) AS rated, MIN(r.created_at)
                     WHERE r.lan_id = ? GROUP BY u.id ORDER BY u.name COLLATE NOCASE', [$lanId]);
 $maxAbs = max([1, ...array_map(fn($g) => abs((int) $g['score']), $ranking)]);
 $topScore = $ranking ? (int) $ranking[0]['score'] : 0;
+$listGames = $lan ? all_list_games_grouped() : [];
+$listGamesAvailable = count(array_filter($listGames, fn($g) => !matching_proposal($ranking, $g)));
 $options = vote_options();
 $optionUsage = array_column(db_rows('SELECT option_id, COUNT(*) AS n FROM lan_ratings GROUP BY option_id'), 'n', 'option_id');
 $users = db_rows('SELECT u.*, (SELECT COUNT(*) FROM list_games g WHERE g.user_id = u.id) AS games
@@ -289,6 +309,44 @@ function admin_button(string $action, string $label, string $class = 'btn-second
             </div>
         </form>
         <p><?= admin_button('delete_lan', 'Supprimer la LAN', 'btn-danger', $lanId, "Supprimer « {$lan['title']} », son pot commun et ses votes ?") ?></p>
+    </details>
+
+    <details class="card"<?= isset($_GET['listes']) ? ' open' : '' ?>>
+        <summary>📚 Jeux de toutes les listes (<?= count($listGames) ?>, dont <?= $listGamesAvailable ?> pas encore dans le pot)</summary>
+        <?php if (!$listGames): ?>
+            <p class="muted">Les listes sont vides pour l'instant.</p>
+        <?php else: ?>
+            <form method="post" id="lists-form">
+                <?= csrf_field() ?>
+                <input type="hidden" name="action" value="add_from_lists">
+                <input type="hidden" name="id" value="<?= $lanId ?>">
+                <input type="hidden" name="lan" value="<?= $lanId ?>">
+                <p class="muted small">Coche les jeux à ajouter au pot commun de « <?= e($lan['title']) ?> » (même si les propositions sont fermées).
+                    Le jeu est ajouté au nom de la première personne qui l'a dans sa liste.</p>
+                <p class="lists-tools">
+                    <button type="button" class="btn-link" data-check="all">Tout cocher</button>
+                    <button type="button" class="btn-link" data-check="none">Tout décocher</button>
+                </p>
+                <ul class="pick-list">
+                    <?php foreach ($listGames as $game):
+                        $inPot = matching_proposal($ranking, $game); ?>
+                        <li class="<?= $inPot ? 'in-pot' : '' ?>">
+                            <label class="inline-check">
+                                <input type="checkbox" name="games[]" value="<?= (int) $game['id'] ?>"<?= $inPot ? ' checked disabled' : '' ?>>
+                                <strong><?= e($game['title']) ?></strong>
+                                <?php if ($game['players'] !== ''): ?><span class="players">👥 <?= e(players_label($game['players'])) ?></span><?php endif; ?>
+                            </label>
+                            <span class="muted small">
+                                <?= $inPot ? '✔ déjà dans le pot · ' : '' ?>liste<?= count($game['owners']) > 1 ? 's' : '' ?> de <?= e(implode(', ', array_unique($game['owners']))) ?>
+                            </span>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+                <?php if ($listGamesAvailable): ?>
+                    <button type="submit">Ajouter la sélection au pot commun</button>
+                <?php endif; ?>
+            </form>
+        <?php endif; ?>
     </details>
 
     <h3>Classement</h3>
