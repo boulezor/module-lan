@@ -358,6 +358,21 @@ function markdown_to_blocks(string $markdown): array
             $flushList();
             continue;
         }
+        // Tableau Markdown : | a | b | suivi de | --- | --- |
+        if (str_starts_with(ltrim($line), '|') && isset($lines[$i + 1]) && preg_match('/^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/', $lines[$i + 1])) {
+            $flushParagraph();
+            $flushList();
+            $cells = fn(string $row) => array_map(fn($c) => markdown_inline_html(trim($c)), explode('|', trim(trim($row), '|')));
+            $rows = [$cells($line)];
+            $i++; // ligne de séparation
+            while (isset($lines[$i + 1]) && str_starts_with(ltrim($lines[$i + 1]), '|')) {
+                $rows[] = $cells($lines[++$i]);
+            }
+            $width = max(array_map('count', $rows));
+            $rows = array_map(fn($r) => array_pad(array_slice($r, 0, $width), $width, ''), $rows);
+            $blocks[] = ['type' => 'table', 'data' => ['withHeadings' => true, 'stretched' => false, 'content' => $rows]];
+            continue;
+        }
         if (preg_match('/^(#{1,4})\s+(.+)$/', $line, $m)) {
             $flushParagraph();
             $flushList();
