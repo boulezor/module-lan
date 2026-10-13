@@ -17,6 +17,7 @@ require __DIR__ . '/db.php';
 require __DIR__ . '/auth.php';
 require __DIR__ . '/blocks.php';
 require __DIR__ . '/pages.php';
+require __DIR__ . '/database.php';
 require __DIR__ . '/ai.php';
 require __DIR__ . '/layout.php';
 

@@ -101,7 +101,15 @@ function db(): PDO
 
     // Colonnes ajoutées après coup : mise à jour des bases existantes
     add_missing_column($pdo, 'pages', 'is_template', 'INTEGER NOT NULL DEFAULT 0');
+    // Bases de données : kind = page | database | row
+    add_missing_column($pdo, 'pages', 'kind', "TEXT NOT NULL DEFAULT 'page'");
+    add_missing_column($pdo, 'pages', 'props', "TEXT NOT NULL DEFAULT ''");
+    add_missing_column($pdo, 'pages', 'db_config', "TEXT NOT NULL DEFAULT ''");
+    add_missing_column($pdo, 'pages', 'ical_token', 'TEXT');
+    $pdo->exec('CREATE UNIQUE INDEX IF NOT EXISTS pages_ical ON pages(ical_token)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS pages_kind ON pages(parent_id, kind)');
     seed_templates();
+    seed_db_templates();
 
     return $pdo;
 }

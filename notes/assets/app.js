@@ -114,7 +114,7 @@
         row.style.paddingLeft = `${8 + depth * 14}px`;
         row.draggable = !flat;
         row.innerHTML = `<button type="button" class="tree-toggle${kids.length ? '' : ' empty'}" aria-label="Déplier">${open ? '▾' : '▸'}</button>
-            <span class="tree-icon">${esc(page.icon || '📄')}</span>
+            <span class="tree-icon">${esc(page.icon || (page.kind === 'database' ? '🗃️' : '📄'))}</span>
             <a class="tree-title" href="index.php?p=${page.id}">${esc(page.title || 'Sans titre')}</a>
             ${page.shared ? '<span class="tree-shared" title="Partagée sur le web">🌐</span>' : ''}
             <span class="tree-actions"><button type="button" class="icon-btn" data-act="menu" title="Actions">⋯</button>${flat ? '' : '<button type="button" class="icon-btn" data-act="add" title="Ajouter une sous-page">＋</button>'}</span>`;
@@ -204,15 +204,16 @@
     function openNewPageMenu(anchor, space, parentId = null) {
         openMenu(anchor, [
             { label: '📄 Page vide', action: () => newPage(space, parentId) },
+            { label: '🗃️ Base de données', action: () => newPage(space, parentId, '', null, 'database') },
             ...(templates().length ? ['-', { info: 'Depuis un modèle' }] : []),
-            ...templates().map((t) => ({ label: `${t.icon || '📄'} ${t.title || 'Sans titre'}`, action: () => newPage(space, parentId, '', t.id) })),
+            ...templates().map((t) => ({ label: `${t.icon || '📄'} ${t.title || 'Sans titre'}${t.kind === 'database' ? ' (base)' : ''}`, action: () => newPage(space, parentId, '', t.id) })),
         ]);
     }
 
     // ---------- Actions sur les pages ----------
-    async function newPage(space, parentId = null, title = '', templateId = null) {
+    async function newPage(space, parentId = null, title = '', templateId = null, kind = 'page') {
         try {
-            const res = await api('create', { space: space || 'team', parentId, title, templateId });
+            const res = await api('create', { space: space || 'team', parentId, title, templateId, kind });
             applySidebar(res);
             if (parentId) { state.expanded.add(parentId); saveExpanded(); renderSidebar(); }
             await openPage(res.page.id, true, res.page);
@@ -240,6 +241,7 @@
     // ---------- Navigation ----------
     async function leaveCurrent() {
         await flushSave();
+        window.NotesDB?.unmount();
         if (state.editor) { try { state.editor.destroy(); } catch { /* déjà détruit */ } }
         state.editor = null;
         NotesAI.close();
@@ -284,7 +286,7 @@
             const a = document.createElement('a');
             a.className = 'recent-card';
             a.href = `index.php?p=${p.id}`;
-            a.innerHTML = `<span class="recent-icon">${esc(p.icon || '📄')}</span><strong>${esc(p.title || 'Sans titre')}</strong>
+            a.innerHTML = `<span class="recent-icon">${esc(p.icon || (p.kind === 'database' ? '🗃️' : '📄'))}</span><strong>${esc(p.title || 'Sans titre')}</strong>
                 <span class="muted small">${p.space === 'private' ? '🔒 Privé · ' : ''}${esc(p.updated)}${p.updated_by ? ' · ' + esc(p.updated_by) : ''}</span>`;
             a.addEventListener('click', (e) => { e.preventDefault(); openPage(p.id); });
             grid.append(a);
@@ -334,7 +336,7 @@
         $('#fav-btn').textContent = page.favorite ? '★' : '☆';
         $('#fav-btn').classList.toggle('on', page.favorite);
         $('#share-btn').classList.toggle('on', !!page.shareUrl);
-        $('#ai-page-btn').hidden = false;
+        $('#ai-page-btn').hidden = page.kind === 'database';
     }
 
     function renderPage() {
@@ -360,8 +362,9 @@
                     <button type="button" class="btn-ghost" id="add-cover" ${page.cover ? 'hidden' : ''}>🖼 Ajouter une couverture</button>
                 </div>
                 <h1 class="page-title" contenteditable="${!page.trashed}" data-placeholder="Sans titre" spellcheck="true"></h1>
-                <div id="editor" class="editor"></div>
-                <div class="subpages">
+                ${page.kind === 'row' && page.db ? `<a class="row-db-link" href="index.php?p=${page.db.id}" data-id="${page.db.id}">${esc(page.db.icon || '🗃️')} ${esc(page.db.title || 'Sans titre')}</a><div id="row-props"></div>` : ''}
+                ${page.kind === 'database' ? '<div id="db-root" class="db-root"></div>' : '<div id="editor" class="editor"></div>'}
+                <div class="subpages" ${page.kind === 'page' ? '' : 'hidden'}>
                     ${kids.length ? '<h3>Sous-pages</h3>' : ''}
                     ${kids.map((k) => `<a class="subpage" href="index.php?p=${k.id}" data-id="${k.id}">${esc(k.icon || '📄')} <span>${esc(k.title || 'Sans titre')}</span></a>`).join('')}
                     ${page.trashed ? '' : '<button type="button" class="btn-ghost" id="add-subpage">＋ Ajouter une sous-page</button>'}
@@ -391,6 +394,23 @@
         $('#cover-remove').addEventListener('click', () => setCover(''));
 
         state.revision = page.revision;
+        const dbContext = {
+            boot, toast, openModal, closeModal, openPage: (id) => openPage(id),
+            apiGetDb: async (id) => {
+                const res = await fetch('api/db.php?' + new URLSearchParams({ action: 'get', id }));
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Erreur');
+                return data;
+            },
+        };
+        $('.row-db-link')?.addEventListener('click', (e) => { e.preventDefault(); openPage(page.db.id); });
+        if (page.kind === 'database') {
+            state.editor = null;
+            state.lastSaved = snapshotMeta(page);
+            NotesDB.mount($('#db-root'), page, dbContext).catch((err) => { $('#db-root').textContent = err.message; });
+            return;
+        }
+        if (page.kind === 'row') NotesDB.mountRowProps($('#row-props'), page, dbContext);
         state.editor = NotesEditor.create({
             holder: 'editor',
             data: page.content,
@@ -416,9 +436,11 @@
     }
 
     async function snapshot(page, content = null) {
+        if (!state.editor) return snapshotMeta(page);
         content ??= await state.editor.save();
         return JSON.stringify({ t: page.title, i: page.icon, c: page.cover, b: content.blocks.map((b) => [b.type, b.data]) });
     }
+    const snapshotMeta = (page) => JSON.stringify({ t: page.title, i: page.icon, c: page.cover });
 
     async function reloadMeta() {
         const { page } = await apiGet('get', { id: state.page.id });
@@ -496,20 +518,20 @@
     document.addEventListener('notes:dirty', markDirty);
 
     async function save(force = false) {
-        if (!state.page || !state.editor || state.conflict && !force) return;
+        if (!state.page || (!state.editor && state.page.kind !== 'database') || state.conflict && !force) return;
         if (state.saving) { await state.saving; if (!state.dirty) return; }
         state.dirty = false;
         const page = state.page;
         state.saving = (async () => {
             try {
-                const content = await state.editor.save();
+                const content = state.editor ? await state.editor.save() : null;
                 const snap = await snapshot(page, content);
                 if (!force && snap === state.lastSaved) {
                     if (state.page === page) setStatus('Enregistré ✔');
                     return;
                 }
                 setStatus('Enregistrement…');
-                const res = await api('save', { id: page.id, revision: state.revision, title: page.title, icon: page.icon, cover: page.cover, content, force });
+                const res = await api('save', { id: page.id, revision: state.revision, title: page.title, icon: page.icon, cover: page.cover, ...(content ? { content } : {}), force });
                 if (res.status === 409) {
                     state.conflict = true;
                     showConflict(res);

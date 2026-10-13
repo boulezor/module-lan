@@ -6,7 +6,7 @@ declare(strict_types=1);
  * Une sous-page hérite toujours de l'espace de sa racine.
  */
 
-const PAGE_LIST_COLUMNS = 'id, space, owner_id, parent_id, position, title, icon, updated_at, share_token IS NOT NULL AS shared, is_template';
+const PAGE_LIST_COLUMNS = 'id, space, owner_id, parent_id, position, title, icon, updated_at, share_token IS NOT NULL AS shared, is_template, kind';
 
 /** Condition SQL « page visible par cet utilisateur » (2 paramètres : rien, puis l'id). */
 function visible_sql(string $alias = 'pages'): string
@@ -23,7 +23,8 @@ function find_page(array $user, int $id, bool $withTrashed = false): ?array
 /** @return list<array<string, mixed>> Toutes les pages visibles (hors corbeille), pour la barre latérale. */
 function page_tree(array $user): array
 {
-    return db_rows('SELECT ' . PAGE_LIST_COLUMNS . ' FROM pages WHERE trashed_at IS NULL AND ' . visible_sql()
+    // Les lignes de bases de données ne figurent pas dans la barre latérale
+    return db_rows('SELECT ' . PAGE_LIST_COLUMNS . " FROM pages WHERE trashed_at IS NULL AND kind != 'row' AND " . visible_sql()
         . ' ORDER BY position, id', [$user['id']]);
 }
 
@@ -56,12 +57,16 @@ function fill_template(string $text, array $user): string
 /** Nouvelle page à partir d'un modèle (contenu, icône et couverture copiés). */
 function create_page_from_template(array $user, array $template, string $space, ?int $parentId): array
 {
-    $page = create_page($user, $space, $parentId, fill_template($template['title'], $user), $template['icon']);
+    $page = create_page($user, $space, $parentId, fill_template($template['title'], $user), $template['icon'], $template['kind']);
     $content = $template['content'] !== '' ? fill_template($template['content'], $user) : '';
     $decoded = $content !== '' ? json_decode($content, true) : null;
-    db_exec('UPDATE pages SET cover = ?, content = ?, search_text = ? WHERE id = ?',
-        [$template['cover'], $decoded ? $content : '', $decoded ? blocks_to_text($decoded) : '', $page['id']]);
-    return find_page($user, (int) $page['id']);
+    db_exec('UPDATE pages SET cover = ?, content = ?, search_text = ?, db_config = ? WHERE id = ?',
+        [$template['cover'], $decoded ? $content : '', $decoded ? blocks_to_text($decoded) : '', $template['db_config'], $page['id']]);
+    $page = find_page($user, (int) $page['id']);
+    if ($template['kind'] === 'database') {
+        copy_rows((int) $template['id'], $page, $user, true);
+    }
+    return $page;
 }
 
 /** Modèles fournis, créés une seule fois (modifiables ou supprimables ensuite). */
@@ -163,7 +168,79 @@ function seed_templates(): void
     }
 }
 
-function create_page(array $user, string $space, ?int $parentId, string $title = '', string $icon = ''): array
+/** Modèles de bases de données fournis (créés une seule fois). */
+function seed_db_templates(): void
+{
+    if (setting('db_templates_seeded') === '1') {
+        return;
+    }
+    set_setting('db_templates_seeded', '1');
+    $opt = fn(string $id, string $name, string $color) => ['id' => $id, 'name' => $name, 'color' => $color];
+    $templates = [
+        ['✅', 'Tâches', [
+            'properties' => [
+                ['id' => 'status', 'name' => 'Statut', 'type' => 'select', 'options' => [$opt('todo', 'À faire', 'gray'), $opt('doing', 'En cours', 'blue'), $opt('done', 'Fait', 'green')]],
+                ['id' => 'priority', 'name' => 'Priorité', 'type' => 'select', 'options' => [$opt('high', 'Haute', 'red'), $opt('medium', 'Moyenne', 'orange'), $opt('low', 'Basse', 'gray')]],
+                ['id' => 'due', 'name' => 'Échéance', 'type' => 'date', 'withTime' => false],
+                ['id' => 'owner', 'name' => 'Responsable', 'type' => 'person'],
+            ],
+            'views' => [
+                ['id' => 'v_board', 'name' => 'Kanban', 'type' => 'board', 'groupBy' => 'status'],
+                ['id' => 'v_table', 'name' => 'Tableau', 'type' => 'table', 'sort' => ['prop' => 'due', 'dir' => 'asc']],
+                ['id' => 'v_cal', 'name' => 'Calendrier', 'type' => 'calendar', 'dateProp' => 'due'],
+            ],
+        ], [
+            ['Exemple : préparer la réunion', ['status' => 'todo', 'priority' => 'high']],
+            ['Exemple : commander le matériel', ['status' => 'doing', 'priority' => 'medium']],
+        ]],
+        ['🎪', 'Événements', [
+            'properties' => [
+                ['id' => 'status', 'name' => 'Statut', 'type' => 'select', 'options' => [
+                    $opt('quote', 'Devis', 'gray'), $opt('confirmed', 'Confirmé', 'blue'), $opt('setup', 'Monté', 'orange'),
+                    $opt('dismantled', 'Démonté', 'purple'), $opt('invoiced', 'Facturé', 'green')]],
+                ['id' => 'dates', 'name' => 'Dates', 'type' => 'date', 'withTime' => false],
+                ['id' => 'client', 'name' => 'Client', 'type' => 'text'],
+                ['id' => 'place', 'name' => 'Lieu', 'type' => 'text'],
+                ['id' => 'amount', 'name' => 'Montant (€)', 'type' => 'number'],
+                ['id' => 'owner', 'name' => 'Responsable', 'type' => 'person'],
+            ],
+            'views' => [
+                ['id' => 'v_cal', 'name' => 'Calendrier', 'type' => 'calendar', 'dateProp' => 'dates'],
+                ['id' => 'v_board', 'name' => 'Suivi', 'type' => 'board', 'groupBy' => 'status'],
+                ['id' => 'v_table', 'name' => 'Tableau', 'type' => 'table', 'sort' => ['prop' => 'dates', 'dir' => 'asc']],
+            ],
+        ], [
+            ['Exemple : mariage', ['status' => 'quote', 'client' => 'Famille Exemple', 'place' => 'Namur', 'amount' => 1500]],
+        ]],
+        ['📦', 'Inventaire', [
+            'properties' => [
+                ['id' => 'category', 'name' => 'Catégorie', 'type' => 'select', 'options' => [
+                    $opt('tents', 'Chapiteaux', 'blue'), $opt('furniture', 'Mobilier', 'brown'), $opt('light', 'Éclairage', 'yellow'), $opt('other', 'Autre', 'gray')]],
+                ['id' => 'qty', 'name' => 'Quantité', 'type' => 'number'],
+                ['id' => 'state', 'name' => 'État', 'type' => 'select', 'options' => [$opt('ok', 'Bon', 'green'), $opt('repair', 'À réparer', 'orange'), $opt('out', 'Hors service', 'red')]],
+                ['id' => 'where', 'name' => 'Emplacement', 'type' => 'text'],
+            ],
+            'views' => [
+                ['id' => 'v_table', 'name' => 'Tableau', 'type' => 'table', 'sort' => ['prop' => 'title', 'dir' => 'asc']],
+                ['id' => 'v_board', 'name' => 'Par état', 'type' => 'board', 'groupBy' => 'state'],
+            ],
+        ], [
+            ['Exemple : tente 6×12 m', ['category' => 'tents', 'qty' => 2, 'state' => 'ok', 'where' => 'Dépôt']],
+        ]],
+    ];
+    $position = 10;
+    foreach ($templates as [$icon, $title, $config, $rows]) {
+        db_exec("INSERT INTO pages (space, title, icon, kind, db_config, position, is_template) VALUES ('team', ?, ?, 'database', ?, ?, 1)",
+            [$title, $icon, json_encode($config, JSON_UNESCAPED_UNICODE), $position++]);
+        $dbId = (int) db()->lastInsertId();
+        foreach ($rows as $i => [$rowTitle, $props]) {
+            db_exec("INSERT INTO pages (space, parent_id, title, kind, props, search_text, position) VALUES ('team', ?, ?, 'row', ?, ?, ?)",
+                [$dbId, $rowTitle, json_encode($props, JSON_UNESCAPED_UNICODE), $rowTitle, $i + 1]);
+        }
+    }
+}
+
+function create_page(array $user, string $space, ?int $parentId, string $title = '', string $icon = '', string $kind = 'page'): array
 {
     if ($parentId !== null) {
         $parent = find_page($user, $parentId);
@@ -174,8 +251,10 @@ function create_page(array $user, string $space, ?int $parentId, string $title =
     }
     $space = $space === 'private' ? 'private' : 'team';
     $ownerId = $space === 'private' ? (int) $user['id'] : null;
-    db_exec('INSERT INTO pages (space, owner_id, parent_id, position, title, icon, created_by, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [
-        $space, $ownerId, $parentId, next_position($parentId, $space, (int) $user['id']), $title, $icon, $user['id'], $user['id'],
+    $kind = $kind === 'database' ? 'database' : 'page';
+    db_exec('INSERT INTO pages (space, owner_id, parent_id, position, title, icon, kind, db_config, created_by, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
+        $space, $ownerId, $parentId, next_position($parentId, $space, (int) $user['id']), $title, $icon, $kind,
+        $kind === 'database' ? json_encode(default_db_config(), JSON_UNESCAPED_UNICODE) : '', $user['id'], $user['id'],
     ]);
     return find_page($user, (int) db()->lastInsertId());
 }
@@ -258,12 +337,16 @@ function trashed_pages(array $user): array
 
 function duplicate_page(array $user, array $page): array
 {
-    db_exec('INSERT INTO pages (space, owner_id, parent_id, position, title, icon, cover, content, search_text, created_by, updated_by)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
+    db_exec('INSERT INTO pages (space, owner_id, parent_id, position, title, icon, cover, content, search_text, kind, props, db_config, created_by, updated_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
         $page['space'], $page['owner_id'], $page['parent_id'], (float) $page['position'] + 0.5,
-        trim($page['title'] . ' (copie)'), $page['icon'], $page['cover'], $page['content'], $page['search_text'], $user['id'], $user['id'],
+        trim($page['title'] . ' (copie)'), $page['icon'], $page['cover'], $page['content'], $page['search_text'],
+        $page['kind'], $page['props'], $page['db_config'], $user['id'], $user['id'],
     ]);
     $copyId = (int) db()->lastInsertId();
+    if ($page['kind'] === 'database') {
+        copy_rows((int) $page['id'], find_page($user, $copyId), $user);
+    }
     // Les fichiers restent accessibles depuis la copie (même fichier sur le disque)
     db_exec('INSERT INTO files (uid, stored_name, page_id, user_id, name, mime, size)
              SELECT lower(hex(randomblob(16))), stored_name, ?, user_id, name, mime, size FROM files WHERE page_id = ?', [$copyId, $page['id']]);
@@ -330,6 +413,22 @@ function page_payload(array $user, array $page): array
         'breadcrumb' => page_breadcrumb($user, $page),
         'trashed' => $page['trashed_at'] !== null,
         'isTemplate' => (bool) $page['is_template'],
+        'kind' => $page['kind'],
+    ] + match ($page['kind']) {
+        'database' => ['config' => db_config($page), 'icalUrl' => $page['ical_token'] ? app_url('ical.php?t=' . $page['ical_token']) : ''],
+        'row' => row_payload($user, $page),
+        default => [],
+    };
+}
+
+/** Une ligne de base de données : ses valeurs + la configuration de sa base. */
+function row_payload(array $user, array $page): array
+{
+    $db = $page['parent_id'] ? find_page($user, (int) $page['parent_id'], true) : null;
+    return [
+        'props' => $page['props'] !== '' ? (json_decode($page['props'], true) ?: (object) []) : (object) [],
+        'db' => $db ? ['id' => (int) $db['id'], 'title' => $db['title'], 'icon' => $db['icon'], 'config' => db_config($db)] : null,
+        'users' => array_map(fn($u) => ['id' => (int) $u['id'], 'name' => $u['name']], db_rows('SELECT id, name FROM users ORDER BY name COLLATE NOCASE')),
     ];
 }
 

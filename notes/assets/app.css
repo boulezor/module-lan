@@ -343,3 +343,134 @@ body.share { overflow: auto; }
 .nb-bookmark-img { width: 30%; max-width: 240px; object-fit: cover; flex-shrink: 0; }
 .nb-bookmark-loading { padding: 12px; border: 1px dashed var(--border); border-radius: var(--radius); }
 @media (max-width: 600px) { .nb-bookmark-img { display: none; } }
+
+/* ========== Bases de données ========== */
+.c-gray { --tag-bg: #e9e9e7; --tag-fg: #37352f; }
+.c-brown { --tag-bg: #eee0da; --tag-fg: #64473a; }
+.c-orange { --tag-bg: #fadec9; --tag-fg: #8a4a17; }
+.c-yellow { --tag-bg: #fdecc8; --tag-fg: #6f5310; }
+.c-green { --tag-bg: #dbeddb; --tag-fg: #2b593f; }
+.c-blue { --tag-bg: #d3e5ef; --tag-fg: #28456c; }
+.c-purple { --tag-bg: #e8deee; --tag-fg: #492f64; }
+.c-pink { --tag-bg: #f5e0e9; --tag-fg: #69314c; }
+.c-red { --tag-bg: #ffe2dd; --tag-fg: #8a2a1c; }
+.db-tag { display: inline-block; background: var(--tag-bg); color: var(--tag-fg); border-radius: 4px; padding: 0 7px; font-size: .82rem; line-height: 1.6; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.db-chip { display: inline-block; font-size: .78rem; color: var(--muted); background: var(--sidebar); border-radius: 4px; padding: 0 6px; white-space: nowrap; }
+.db-empty { color: #c7c6c4; }
+
+.page-inner:has(.db-root) { max-width: 1180px; }
+.db-root { margin-top: 8px; }
+.db-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid var(--border); padding-bottom: 6px; margin-bottom: 10px; }
+.db-tabs { display: flex; flex-wrap: wrap; gap: 2px; }
+.db-tab { border: 0; background: none; padding: 5px 10px; border-radius: var(--radius); color: var(--muted); font-size: .9rem; }
+.db-tab:hover { background: var(--hover); }
+.db-tab.active { color: var(--text); font-weight: 600; box-shadow: inset 0 -2px 0 var(--text); border-radius: 0; }
+.db-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.db-tool { border: 0; background: none; padding: 5px 9px; border-radius: var(--radius); color: var(--muted); font-size: .88rem; }
+.db-tool:hover { background: var(--hover); color: var(--text); }
+.db-tool.on { color: var(--accent); }
+.db-search { width: 160px; margin: 0; padding: 5px 8px; font-size: .88rem; }
+.db-new { padding: 5px 12px; }
+.db-hint { padding: 14px; background: var(--sidebar); border-radius: var(--radius); margin-bottom: 10px; }
+.db-count { margin-top: 6px; }
+
+/* Tableau */
+.db-scroll { overflow-x: auto; }
+.db-table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+.db-table th, .db-table td { border: 1px solid var(--border); padding: 0; text-align: left; vertical-align: middle; }
+.db-table tr > :first-child { border-left: 0; }
+.db-table tr > :last-child { border-right: 0; }
+.db-th { font-weight: 500; color: var(--muted); padding: 6px 8px !important; white-space: nowrap; cursor: pointer; min-width: 140px; }
+.db-th:hover { background: var(--hover); }
+.db-th-title { min-width: 240px; }
+.db-th-add { min-width: 36px; width: 36px; text-align: center !important; }
+.db-table.readonly td { padding: 6px 8px; }
+.db-td-title { display: flex; align-items: center; gap: 2px; position: relative; border: 0 !important; }
+.db-table tbody tr { border-top: 1px solid var(--border); }
+.db-table tbody tr:hover { background: rgba(55, 53, 47, .03); }
+.db-table tr.dragging { opacity: .4; }
+.db-table tr.drop-before { box-shadow: inset 0 2px 0 var(--accent); }
+.db-row-handle { border: 0; background: none; color: #c7c6c4; cursor: grab; padding: 0 2px; font-size: .75rem; letter-spacing: -2px; opacity: 0; }
+.db-table tr:hover .db-row-handle { opacity: 1; }
+.db-row-icon { font-size: .95rem; }
+.db-title-input { font-weight: 500; }
+.db-open { border: 1px solid var(--border); background: #fff; border-radius: 4px; font-size: .75rem; padding: 1px 6px; color: var(--muted); opacity: 0; white-space: nowrap; margin-right: 6px; }
+.db-table tr:hover .db-open { opacity: 1; }
+.db-open:hover { color: var(--text); background: var(--sidebar); }
+.db-input { border: 0 !important; background: transparent !important; margin: 0 !important; padding: 6px 8px !important; width: 100%; font-size: inherit; border-radius: 0 !important; }
+.db-input:focus { outline: 2px solid rgba(35, 131, 226, .45) !important; background: #fff !important; }
+.db-cell { display: flex; align-items: center; min-height: 34px; }
+.db-cell-checkbox { padding-left: 8px; }
+.db-checkbox { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+.db-value-btn { border: 0; background: none; width: 100%; min-height: 34px; text-align: left; padding: 4px 8px; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: inherit; }
+.db-value-btn:hover { background: var(--hover); }
+.db-open-link { text-decoration: none; padding: 0 8px; color: var(--muted); }
+.db-add-row { border: 0; background: none; color: var(--muted); padding: 7px 8px; width: 100%; text-align: left; font-size: .9rem; border-bottom: 1px solid var(--border); }
+.db-add-row:hover { background: var(--hover); }
+
+/* Kanban */
+.db-board { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 12px; align-items: flex-start; }
+.db-column { flex: 0 0 260px; background: var(--sidebar); border-radius: 8px; padding: 8px; }
+.db-column.drop { outline: 2px dashed var(--accent); }
+.db-column-head { display: flex; justify-content: space-between; align-items: center; padding: 2px 4px 8px; }
+.db-column-list { display: flex; flex-direction: column; gap: 6px; min-height: 8px; }
+.db-card { background: #fff; border-radius: 6px; padding: 8px 10px; box-shadow: 0 0 0 1px rgba(15, 15, 15, .08), 0 2px 4px rgba(15, 15, 15, .06); cursor: pointer; }
+.db-card:hover { background: #fbfbfa; }
+.db-card.dragging { opacity: .4; }
+.db-card-title { font-weight: 500; font-size: .9rem; margin-bottom: 4px; }
+.db-card-props { display: flex; flex-wrap: wrap; gap: 4px; }
+.db-add-card { border: 0; background: none; color: var(--muted); width: 100%; text-align: left; padding: 6px 4px; font-size: .88rem; border-radius: 4px; margin-top: 4px; }
+.db-add-card:hover { background: var(--hover); }
+.db-inline-create { background: #fff !important; border-radius: 6px !important; box-shadow: 0 0 0 1px var(--accent); margin-top: 4px !important; }
+
+/* Calendrier */
+.db-cal-head { display: flex; align-items: center; gap: 4px; margin-bottom: 8px; }
+.db-cal-title { font-size: 1.1rem; text-transform: capitalize; margin-right: auto; }
+.db-cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-top: 1px solid var(--border); border-left: 1px solid var(--border); }
+.db-cal-dow { font-size: .78rem; color: var(--muted); padding: 4px 6px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); text-align: right; }
+.db-cal-day { min-height: 110px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 4px; position: relative; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.db-cal-day.other { background: #fbfbfa; }
+.db-cal-day.other .db-cal-num { color: #c7c6c4; }
+.db-cal-day.drop { background: rgba(35, 131, 226, .08); }
+.db-cal-num { text-align: right; font-size: .8rem; color: var(--muted); }
+.db-cal-day.today .db-cal-num { color: #fff; background: #eb5757; border-radius: 50%; width: 22px; height: 22px; line-height: 22px; text-align: center; margin-left: auto; }
+.db-cal-event { background: #fff; box-shadow: 0 0 0 1px rgba(15, 15, 15, .1), 0 1px 2px rgba(15, 15, 15, .08); border-radius: 4px; padding: 2px 6px; font-size: .8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.db-cal-event:hover { background: var(--sidebar); }
+.db-cal-add { position: absolute; top: 3px; left: 4px; border: 0; background: none; color: var(--muted); border-radius: 4px; width: 22px; height: 22px; opacity: 0; }
+.db-cal-day:hover .db-cal-add { opacity: 1; }
+.db-cal-add:hover { background: var(--hover); }
+
+/* Fenêtres flottantes */
+.db-pop { position: fixed; z-index: 85; background: #fff; border-radius: 8px; box-shadow: var(--shadow); padding: 6px; min-width: 220px; max-width: 340px; max-height: 70vh; overflow-y: auto; font-size: .9rem; }
+.db-pop-wide { min-width: 320px; max-width: 520px; }
+.db-pop .db-input { border: 1px solid var(--border) !important; border-radius: var(--radius) !important; margin: 2px 0 6px !important; padding: 6px 8px !important; }
+.db-pop select.db-input { appearance: auto; }
+.db-pop-label { font-size: .75rem; color: var(--muted); font-weight: 600; padding: 6px 4px 2px; }
+.db-pop-item { display: flex; align-items: center; gap: 6px; width: 100%; border: 0; background: none; text-align: left; padding: 6px 8px; border-radius: 4px; text-decoration: none; color: inherit; font-size: inherit; }
+.db-pop-item:hover, .db-pop-item.on { background: var(--hover); }
+.db-pop-item.danger { color: var(--danger); }
+.db-pop-create { color: var(--muted); }
+.db-pop-empty { color: var(--muted); font-size: .85rem; padding: 6px 8px; }
+.db-check-label { display: flex; align-items: center; gap: 6px; font-weight: 400; margin: 2px 4px 6px; font-size: .88rem; }
+.db-filter-row { display: grid; grid-template-columns: 1.2fr 1fr 1.2fr auto; gap: 4px; align-items: center; }
+.db-option-row { display: grid; grid-template-columns: 1fr 100px auto; gap: 4px; align-items: center; }
+.db-color { background: var(--tag-bg) !important; color: var(--tag-fg); }
+
+/* Page d'une ligne */
+.row-db-link { display: inline-block; font-size: .85rem; color: var(--muted); text-decoration: none; margin-bottom: 8px; }
+.row-db-link:hover { color: var(--text); }
+.db-row-props { display: grid; gap: 2px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.db-row-prop { display: grid; grid-template-columns: 170px 1fr; align-items: center; font-size: .9rem; }
+.db-row-prop-name { color: var(--muted); padding: 6px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.db-row-prop .db-cell { border-radius: 4px; }
+.db-row-prop .db-cell:hover { background: var(--hover); }
+
+@media (max-width: 800px) {
+    .db-search { width: 120px; }
+    .db-cal-day { min-height: 70px; }
+    .db-cal-event { font-size: .7rem; padding: 1px 3px; }
+    .db-row-prop { grid-template-columns: 120px 1fr; }
+    .db-th { min-width: 120px; }
+}
+.db-tools input.db-search { display: inline-block; width: 170px; margin: 0; padding: 5px 8px; }
+@media (max-width: 800px) { .db-tools input.db-search { width: 120px; } }

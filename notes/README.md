@@ -20,6 +20,15 @@ sans inscription publique : https://tbxm.be/notes/
   N'importe quelle page peut devenir un modèle (menu ⋯ › *Utiliser comme modèle*).
 - **Historique des versions** (menu ⋯) : aperçu et restauration ; une version est gardée avant chaque série de
   modifications (au plus toutes les 10 minutes par personne, 100 versions par page). Une restauration est elle-même réversible.
+- **Bases de données** (＋ › *Base de données*, ou modèles *Tâches*, *Événements*, *Inventaire*) :
+  - chaque ligne est une page (avec ses propriétés en haut et un contenu libre en dessous) ;
+  - propriétés : texte, nombre, sélection, sélection multiple (options colorées, créées à la volée), date (avec heure
+    et date de fin en option), case à cocher, personne, lien ;
+  - vues **Tableau** (édition directe des cellules, réorganisation par glisser-déposer), **Kanban** (colonnes selon une
+    sélection, cartes déplaçables) et **Calendrier** (mois, événements déplaçables d'un jour à l'autre) ;
+  - par vue : filtres, tri, propriétés affichées ; recherche dans la base ;
+  - **export CSV** (s'ouvre dans Excel) et **abonnement calendrier iCal** (Google Agenda, Outlook, iPhone) par lien secret révocable ;
+  - partage public en lecture seule (tableau) et export Markdown.
 - **Application installable** sur téléphone et ordinateur (*Ajouter à l'écran d'accueil*), avec page « hors connexion ».
 - **Enregistrement automatique**, avec détection des conflits si deux personnes modifient la même page.
 - **Recherche** (Ctrl+K) dans les titres et le contenu ; **favoris** ; **récemment modifiées** sur l'accueil.
