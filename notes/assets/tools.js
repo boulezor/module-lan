@@ -152,6 +152,66 @@
         validate(data) { return data.pageId > 0; }
     }
 
+    // ---------- Aperçu de lien (carte avec titre, description, image) ----------
+    class Bookmark {
+        static get toolbox() { return { title: 'Aperçu de lien', icon: '<span class="tb-emoji">🔗</span>' }; }
+        static get isReadOnlySupported() { return true; }
+        // Une URL seule collée dans une ligne vide devient un aperçu (YouTube/Vimeo restent des vidéos intégrées)
+        static get pasteConfig() { return { patterns: { link: /^https?:\/\/\S+$/i } }; }
+        constructor({ data, readOnly }) { this.data = data || {}; this.readOnly = readOnly; }
+        render() {
+            this.wrap = el('div', 'nb-bookmark');
+            this.data.url ? this.renderCard() : this.renderInput();
+            return this.wrap;
+        }
+        onPaste(event) {
+            this.data = { url: event.detail.data };
+            this.load(this.data.url);
+        }
+        renderInput(error = '') {
+            if (this.readOnly) return;
+            this.wrap.innerHTML = '';
+            const input = el('input', 'nb-picker-input', { type: 'url', placeholder: 'Colle un lien (https://…) puis Entrée' });
+            input.addEventListener('keydown', (e) => {
+                e.stopPropagation();
+                if (e.key === 'Enter') { e.preventDefault(); if (input.value.trim()) this.load(input.value.trim()); }
+            });
+            this.wrap.append(input);
+            if (error) this.wrap.append(el('div', 'nb-ai-status', { text: '⚠️ ' + error }));
+            setTimeout(() => input.focus(), 50);
+        }
+        async load(url) {
+            this.wrap.innerHTML = '<div class="nb-bookmark-loading muted"><span class="spinner"></span> Chargement de l\'aperçu…</div>';
+            try {
+                const res = await fetch('api/unfurl.php?url=' + encodeURIComponent(url));
+                const data = await res.json();
+                if (!res.ok) { this.data = { url }; this.renderCard(); return; } // aperçu indisponible : simple lien
+                this.data = data;
+            } catch { this.data = { url }; }
+            this.renderCard();
+            this.wrap.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        renderCard() {
+            const d = this.data;
+            let host = '';
+            try { host = new URL(d.url).hostname.replace(/^www\./, ''); } catch { /* ignore */ }
+            this.wrap.innerHTML = '';
+            const a = el('a', 'nb-bookmark-card', { href: d.url, target: '_blank', rel: 'noopener noreferrer' });
+            const text = el('div', 'nb-bookmark-text');
+            text.append(el('div', 'nb-bookmark-title', { text: d.title || d.url }));
+            if (d.description) text.append(el('div', 'nb-bookmark-desc', { text: d.description }));
+            const site = el('div', 'nb-bookmark-site');
+            if (d.favicon) { const fav = el('img', '', { src: d.favicon, alt: '', loading: 'lazy' }); fav.addEventListener('error', () => fav.remove()); site.append(fav); }
+            site.append(el('span', '', { text: d.site || host }));
+            text.append(site);
+            a.append(text);
+            if (d.image) { const img = el('img', 'nb-bookmark-img', { src: d.image, alt: '', loading: 'lazy' }); img.addEventListener('error', () => img.remove()); a.append(img); }
+            this.wrap.append(a);
+        }
+        save() { return this.data; }
+        validate(data) { return !!data.url; }
+    }
+
     // ---------- Table des matières ----------
     class Toc {
         static get toolbox() { return { title: 'Table des matières', icon: '<span class="tb-emoji">📑</span>' }; }
@@ -454,6 +514,7 @@
                 image: { class: ImageTool, config: { captionPlaceholder: 'Légende', buttonContent: 'Choisir une image', uploader: { uploadByFile: upload('image'), uploadByUrl: (url) => Promise.resolve({ success: 1, file: { url } }) } } },
                 attaches: { class: AttachesTool, config: { endpoint: 'api/upload.php', buttonText: 'Choisir un fichier', errorMessage: 'Envoi impossible', uploader: { uploadByFile: upload('file') } } },
                 embed: { class: Embed, inlineToolbar: true, config: { services: { youtube: true, vimeo: true, twitch: true, codepen: true, instagram: true } } },
+                bookmark: Bookmark,
                 callout: { class: Callout, inlineToolbar: true },
                 toggle: { class: Toggle, inlineToolbar: true },
                 pageLink: { class: PageLink, config: { onOpen: options.onOpenPage, createSubpage: options.createSubpage, currentId: options.currentId } },

@@ -18,7 +18,7 @@ function sidebar_data(array $user): array
     return [
         'tree' => array_map(fn($p) => [
             'id' => (int) $p['id'], 'parentId' => $p['parent_id'] ? (int) $p['parent_id'] : null, 'space' => $p['space'],
-            'title' => $p['title'], 'icon' => $p['icon'], 'shared' => (bool) $p['shared'],
+            'title' => $p['title'], 'icon' => $p['icon'], 'shared' => (bool) $p['shared'], 'isTemplate' => (bool) $p['is_template'],
         ], page_tree($user)),
         'favorites' => array_map(fn($r) => (int) $r['page_id'],
             db_rows('SELECT f.page_id FROM favorites f JOIN pages p ON p.id = f.page_id WHERE f.user_id = ? AND p.trashed_at IS NULL ORDER BY f.created_at', [$user['id']])),
@@ -56,8 +56,12 @@ try {
             json_response(['pages' => array_map(fn($p) => $p + ['trashed' => local_time($p['trashed_at'])], trashed_pages($user))]);
 
         case 'create':
-            $page = create_page($user, (string) ($in['space'] ?? 'team'), isset($in['parentId']) ? (int) $in['parentId'] : null,
-                clean_line((string) ($in['title'] ?? ''), 200));
+            $parentId = isset($in['parentId']) ? (int) $in['parentId'] : null;
+            if (!empty($in['templateId'])) {
+                $page = create_page_from_template($user, page_or_404($user, (int) $in['templateId']), (string) ($in['space'] ?? 'team'), $parentId);
+            } else {
+                $page = create_page($user, (string) ($in['space'] ?? 'team'), $parentId, clean_line((string) ($in['title'] ?? ''), 200));
+            }
             json_response(['page' => page_payload($user, $page)] + sidebar_data($user));
 
         case 'save':
@@ -84,6 +88,7 @@ try {
                 $fields['search_text'] = mb_substr(blocks_to_text($content), 0, 200000);
             }
             if ($fields) {
+                snapshot_before_save($page, $user);
                 $sets = implode(', ', array_map(fn($k) => "{$k} = ?", array_keys($fields)));
                 db_exec("UPDATE pages SET {$sets}, revision = revision + 1, updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
                     [...array_values($fields), $user['id'], $page['id']]);
@@ -126,6 +131,41 @@ try {
             }
             delete_page_forever($page);
             json_response(['ok' => true]);
+
+        case 'template':
+            $page = page_or_404($user, $id);
+            db_exec('UPDATE pages SET is_template = ? WHERE id = ?', [empty($in['on']) ? 0 : 1, $page['id']]);
+            json_response(['ok' => true] + sidebar_data($user));
+
+        case 'versions':
+            page_or_404($user, $id, true);
+            json_response(['versions' => page_versions($id)]);
+
+        case 'version':
+            page_or_404($user, $id, true);
+            $version = db_row('SELECT * FROM page_versions WHERE id = ? AND page_id = ?', [(int) ($in['versionId'] ?? 0), $id]);
+            if (!$version) {
+                json_response(['error' => 'Version introuvable.'], 404);
+            }
+            json_response(['version' => [
+                'title' => $version['title'], 'icon' => $version['icon'], 'cover' => $version['cover'],
+                'content' => $version['content'] !== '' ? json_decode($version['content'], true) : ['blocks' => []],
+            ]]);
+
+        case 'restore_version':
+            $page = page_or_404($user, $id);
+            $version = db_row('SELECT * FROM page_versions WHERE id = ? AND page_id = ?', [(int) ($in['versionId'] ?? 0), $id]);
+            if (!$version) {
+                json_response(['error' => 'Version introuvable.'], 404);
+            }
+            // L'état actuel devient lui aussi une version : la restauration est réversible
+            db_exec('INSERT INTO page_versions (page_id, title, icon, cover, content, author_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                [$page['id'], $page['title'], $page['icon'], $page['cover'], $page['content'], $page['updated_by'], $page['updated_at']]);
+            $content = $version['content'] !== '' ? json_decode($version['content'], true) : ['blocks' => []];
+            db_exec('UPDATE pages SET title = ?, icon = ?, cover = ?, content = ?, search_text = ?, revision = revision + 1,
+                     updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+                [$version['title'], $version['icon'], $version['cover'], $version['content'], blocks_to_text($content ?: []), $user['id'], $page['id']]);
+            json_response(['page' => page_payload($user, find_page($user, $id))] + sidebar_data($user));
 
         case 'share':
             $page = page_or_404($user, $id);

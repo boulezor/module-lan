@@ -43,6 +43,10 @@ page_open($current ? ($current['title'] ?: 'Sans titre') : 'Accueil', 'app-body'
                     <button type="button" class="icon-btn" data-new-page="team" title="Nouvelle page d'équipe">＋</button></div>
                 <div class="sb-list" data-list="team"></div>
             </section>
+            <section class="sb-section" id="sb-templates">
+                <div class="sb-title"><button type="button" class="sb-fold" id="templates-fold">▸ Modèles</button></div>
+                <div class="sb-list" data-list="templates" hidden></div>
+            </section>
             <section class="sb-section" data-space="private">
                 <div class="sb-title" data-drop-space="private"><span>Privé</span>
                     <button type="button" class="icon-btn" data-new-page="private" title="Nouvelle page privée">＋</button></div>

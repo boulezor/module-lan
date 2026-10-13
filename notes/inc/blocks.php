@@ -7,7 +7,7 @@ declare(strict_types=1);
  */
 
 const BLOCK_TYPES = ['paragraph', 'header', 'list', 'quote', 'code', 'delimiter', 'table', 'image',
-                     'attaches', 'embed', 'callout', 'toggle', 'pageLink', 'toc'];
+                     'attaches', 'embed', 'callout', 'toggle', 'pageLink', 'toc', 'bookmark'];
 
 /** Une URL acceptable dans un lien ou un média : http(s), mailto, ou fichier interne. */
 function safe_url(string $url, bool $allowMailto = false): string
@@ -164,6 +164,20 @@ function sanitize_content(array $content): array
             case 'pageLink':
                 $data = ['pageId' => (int) ($data['pageId'] ?? 0)];
                 break;
+            case 'bookmark':
+                $url = safe_url((string) ($data['url'] ?? ''));
+                if (!preg_match('#^https?://#i', $url)) {
+                    continue 2;
+                }
+                $data = [
+                    'url' => $url,
+                    'title' => clean_line(strip_tags((string) ($data['title'] ?? '')), 200),
+                    'description' => clean_line(strip_tags((string) ($data['description'] ?? '')), 300),
+                    'site' => clean_line(strip_tags((string) ($data['site'] ?? '')), 80),
+                    'image' => preg_match('#^https?://#i', $img = safe_url((string) ($data['image'] ?? ''))) ? $img : '',
+                    'favicon' => preg_match('#^https?://#i', $fav = safe_url((string) ($data['favicon'] ?? ''))) ? $fav : '',
+                ];
+                break;
             case 'callout':
                 $data = [
                     'emoji' => mb_substr(strip_tags((string) ($data['emoji'] ?? '💡')), 0, 8),
@@ -220,7 +234,7 @@ function blocks_to_text(array $content): string
             }
         } elseif (is_array($value)) {
             foreach ($value as $key => $v) {
-                if (!in_array($key, ['url', 'embed', 'source', 'service', 'extension', 'color', 'level', 'style'], true)) {
+                if (!in_array($key, ['url', 'embed', 'source', 'service', 'extension', 'color', 'level', 'style', 'image', 'favicon'], true)) {
                     $walk($v);
                 }
             }
@@ -268,6 +282,7 @@ function blocks_to_markdown(array $content, callable $pageTitle): string
             'callout' => '> ' . ($d['emoji'] ?? '💡') . ' ' . inline_markdown((string) ($d['text'] ?? '')),
             'toggle' => '**▸ ' . inline_markdown((string) ($d['title'] ?? '')) . "**\n\n" . inline_markdown((string) ($d['text'] ?? '')),
             'pageLink' => ($t = $pageTitle((int) ($d['pageId'] ?? 0))) !== null ? '📄 ' . $t : '',
+            'bookmark' => '🔗 [' . ($d['title'] ?: $d['url']) . '](' . $d['url'] . ')' . ($d['description'] ? "\n> " . $d['description'] : ''),
             'toc' => '',
             default => '',
         };

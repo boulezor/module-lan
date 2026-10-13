@@ -13,7 +13,14 @@ sans inscription publique : https://tbxm.be/notes/
   - blocs maison : encadré coloré, bloc repliable, lien vers une page, table des matières.
   - **« / »** ouvre le menu des blocs (Entrée choisit le premier résultat).
   - **Raccourcis Markdown** : `#`, `##`, `###`, `-`, `1.`, `[]`, `>`, ```` ``` ````, `---`.
+- **Aperçu de lien** : une URL collée seule devient une carte (titre, description, image), comme dans WhatsApp.
 - **Icône (emoji)** et **couverture** (dégradé ou image) par page.
+- **Modèles de pages** : section *Modèles* de la barre latérale (réunion, événement, projet, journal, procédure fournis).
+  Le ＋ propose « Page vide » ou un modèle ; `{{date}}`, `{{heure}}` et `{{auteur}}` sont remplacés à la création.
+  N'importe quelle page peut devenir un modèle (menu ⋯ › *Utiliser comme modèle*).
+- **Historique des versions** (menu ⋯) : aperçu et restauration ; une version est gardée avant chaque série de
+  modifications (au plus toutes les 10 minutes par personne, 100 versions par page). Une restauration est elle-même réversible.
+- **Application installable** sur téléphone et ordinateur (*Ajouter à l'écran d'accueil*), avec page « hors connexion ».
 - **Enregistrement automatique**, avec détection des conflits si deux personnes modifient la même page.
 - **Recherche** (Ctrl+K) dans les titres et le contenu ; **favoris** ; **récemment modifiées** sur l'accueil.
 - **Corbeille** (restaurer / supprimer définitivement), **dupliquer**, **déplacer vers…**

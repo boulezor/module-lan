@@ -85,9 +85,33 @@ function db(): PDO
             key   TEXT PRIMARY KEY,
             value TEXT NOT NULL
         );
+        -- Historique : état d'une page avant modification
+        CREATE TABLE IF NOT EXISTS page_versions (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            page_id    INTEGER NOT NULL REFERENCES pages(id) ON DELETE CASCADE,
+            title      TEXT NOT NULL,
+            icon       TEXT NOT NULL,
+            cover      TEXT NOT NULL,
+            content    TEXT NOT NULL,
+            author_id  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS versions_page ON page_versions(page_id, id);
         SQL);
 
+    // Colonnes ajoutées après coup : mise à jour des bases existantes
+    add_missing_column($pdo, 'pages', 'is_template', 'INTEGER NOT NULL DEFAULT 0');
+    seed_templates();
+
     return $pdo;
+}
+
+function add_missing_column(PDO $pdo, string $table, string $column, string $definition): void
+{
+    $columns = array_column($pdo->query("PRAGMA table_info({$table})")->fetchAll(), 'name');
+    if (!in_array($column, $columns, true)) {
+        $pdo->exec("ALTER TABLE {$table} ADD COLUMN {$column} {$definition}");
+    }
 }
 
 function db_row(string $sql, array $params = []): ?array
