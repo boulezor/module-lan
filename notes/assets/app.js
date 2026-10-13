@@ -70,7 +70,7 @@
         $('#modal').hidden = false;
         onOpen?.($('#modal-box'));
     }
-    function closeModal() { $('#modal').hidden = true; $('#modal-box').innerHTML = ''; }
+    function closeModal() { $('#modal').hidden = true; $('#modal-box').innerHTML = ''; $('#modal-box').className = 'modal'; }
     $('#modal').addEventListener('mousedown', (e) => { if (e.target.id === 'modal') closeModal(); });
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') { closeModal(); closeMenu(); NotesAI.close(); }
@@ -79,7 +79,8 @@
 
     // ---------- Barre latérale ----------
     const byId = () => Object.fromEntries(state.tree.map((p) => [p.id, p]));
-    const children = (parentId, space) => state.tree.filter((p) => p.parentId === parentId && (parentId !== null || p.space === space));
+    const children = (parentId, space) => state.tree.filter((p) => p.parentId === parentId && (parentId !== null || (p.space === space && !p.isTemplate)));
+    const templates = () => state.tree.filter((p) => p.isTemplate);
 
     function renderSidebar() {
         window.NotesPages = byId();
@@ -90,6 +91,10 @@
             roots.forEach((p) => list.append(treeItem(p, 0)));
             if (!roots.length) list.innerHTML = `<div class="sb-empty">Aucune page</div>`;
         });
+        const tplList = $('[data-list="templates"]');
+        tplList.innerHTML = '';
+        templates().forEach((p) => tplList.append(treeItem(p, 0, true)));
+        if (!tplList.children.length) tplList.innerHTML = '<div class="sb-empty">Aucun modèle</div>';
         const favList = $('[data-list="favorites"]');
         favList.innerHTML = '';
         const pages = byId();
@@ -120,7 +125,7 @@
         });
         row.querySelector('.tree-title').addEventListener('click', (e) => { e.preventDefault(); openPage(page.id); });
         row.querySelector('[data-act="menu"]').addEventListener('click', (e) => openMenu(e.currentTarget, pageMenuItems(page.id)));
-        row.querySelector('[data-act="add"]')?.addEventListener('click', () => newPage(page.space, page.id));
+        row.querySelector('[data-act="add"]')?.addEventListener('click', (e) => openNewPageMenu(e.currentTarget, page.space, page.id));
         if (!flat) attachDrag(row, page);
         wrap.append(row);
         if (open && kids.length) kids.forEach((k) => wrap.append(treeItem(k, depth + 1)));
@@ -195,10 +200,19 @@
         ];
     }
 
+    /** Menu « Page vide / modèles » pour créer une page */
+    function openNewPageMenu(anchor, space, parentId = null) {
+        openMenu(anchor, [
+            { label: '📄 Page vide', action: () => newPage(space, parentId) },
+            ...(templates().length ? ['-', { info: 'Depuis un modèle' }] : []),
+            ...templates().map((t) => ({ label: `${t.icon || '📄'} ${t.title || 'Sans titre'}`, action: () => newPage(space, parentId, '', t.id) })),
+        ]);
+    }
+
     // ---------- Actions sur les pages ----------
-    async function newPage(space, parentId = null, title = '') {
+    async function newPage(space, parentId = null, title = '', templateId = null) {
         try {
-            const res = await api('create', { space: space || 'team', parentId, title });
+            const res = await api('create', { space: space || 'team', parentId, title, templateId });
             applySidebar(res);
             if (parentId) { state.expanded.add(parentId); saveExpanded(); renderSidebar(); }
             await openPage(res.page.id, true, res.page);
@@ -261,7 +275,7 @@
                 <button type="button" class="btn-secondary" data-new="private">＋ Nouvelle page privée</button>
             </div>
             <h2>Récemment modifiées</h2><div class="recent-grid" id="recent">Chargement…</div></div>`;
-        view.querySelectorAll('[data-new]').forEach((b) => b.addEventListener('click', () => newPage(b.dataset.new)));
+        view.querySelectorAll('[data-new]').forEach((b) => b.addEventListener('click', (e) => openNewPageMenu(e.currentTarget, b.dataset.new)));
         const { pages } = await apiGet('recent');
         const grid = $('#recent');
         if (!grid) return;
@@ -333,6 +347,8 @@
         const kids = state.tree.filter((p) => p.parentId === page.id);
         const view = $('#view');
         view.innerHTML = `
+            ${page.isTemplate && !page.trashed ? `<div class="template-banner">🧩 Ceci est un <strong>modèle</strong> : modifie-le librement, puis crée des pages à partir de lui.
+                <button type="button" class="btn-primary" id="use-template">＋ Créer une page depuis ce modèle</button></div>` : ''}
             ${page.trashed ? `<div class="trash-banner">Cette page est dans la corbeille. <button type="button" class="btn-secondary" id="restore-btn">Restaurer</button></div>` : ''}
             <div class="cover ${page.cover.startsWith('gradient-') ? page.cover : ''}" id="cover" style="${coverStyle(page.cover)}" ${page.cover ? '' : 'hidden'}>
                 <div class="cover-actions"><button type="button" class="btn-ghost" id="cover-change">Changer la couverture</button><button type="button" class="btn-ghost" id="cover-remove">Retirer</button></div>
@@ -365,7 +381,8 @@
         });
         title.addEventListener('paste', (e) => { e.preventDefault(); document.execCommand('insertText', false, e.clipboardData.getData('text/plain').replace(/\s+/g, ' ')); });
         view.querySelectorAll('.subpage').forEach((a) => a.addEventListener('click', (e) => { e.preventDefault(); openPage(Number(a.dataset.id)); }));
-        $('#add-subpage')?.addEventListener('click', () => newPage(null, page.id));
+        $('#add-subpage')?.addEventListener('click', (e) => openNewPageMenu(e.currentTarget, page.space, page.id));
+        $('#use-template')?.addEventListener('click', () => newPage('team', null, '', page.id));
         $('#restore-btn')?.addEventListener('click', async () => { applySidebar(await api('restore', { id: page.id })); openPage(page.id, false); });
         $('#add-icon')?.addEventListener('click', (e) => openEmojiPicker(e.currentTarget));
         $('#page-icon').addEventListener('click', (e) => !page.trashed && openEmojiPicker(e.currentTarget));
@@ -538,6 +555,13 @@
             { label: p.favorite ? '☆ Retirer des favoris' : '⭐ Ajouter aux favoris', action: () => toggleFavorite(p.id, !p.favorite) },
             { label: '⧉ Dupliquer', action: () => duplicatePage(p.id) },
             { label: '↪ Déplacer vers…', action: () => openMove(p.id) },
+            { label: '🕘 Historique des versions', action: () => openHistory(p.id) },
+            { label: p.isTemplate ? '📄 Retirer des modèles' : '🧩 Utiliser comme modèle', action: async () => {
+                applySidebar(await api('template', { id: p.id, on: !p.isTemplate }));
+                p.isTemplate = !p.isTemplate;
+                renderPage();
+                toast(p.isTemplate ? 'Page ajoutée aux modèles.' : 'Page retirée des modèles.');
+            } },
             { label: '⬇️ Exporter en Markdown', action: () => { location.href = `export.php?p=${p.id}`; } },
             { label: '🖨️ Imprimer / PDF', action: () => window.print() },
             '-',
@@ -620,6 +644,54 @@
             ...(boot.aiEnabled ? [] : ['-', { info: 'Assistant non configuré : ajoute une clé OpenAI dans l\'administration.' }]),
         ]);
     });
+
+    // ---------- Historique des versions ----------
+    async function openHistory(id) {
+        await flushSave();
+        const { versions } = await apiGet('versions', { id });
+        let preview = null;
+        openModal(`<h2>🕘 Historique des versions</h2>
+            ${versions.length ? '' : '<p class="muted">Aucune version précédente pour l\'instant. Une version est gardée avant chaque série de modifications (au plus toutes les 10 minutes par personne).</p>'}
+            <div class="history" ${versions.length ? '' : 'hidden'}>
+                <div class="history-list" id="history-list"></div>
+                <div class="history-preview"><div class="muted small" id="history-info">Choisis une version à gauche.</div><div id="history-editor" class="editor"></div></div>
+            </div>
+            <div class="modal-actions"><button type="button" class="btn-secondary" data-close>Fermer</button>
+                <button type="button" class="btn-primary" id="history-restore" disabled>Restaurer cette version</button></div>`, (box) => {
+            box.classList.add('wide');
+            box.querySelector('[data-close]').addEventListener('click', () => { box.classList.remove('wide'); closeModal(); });
+            const list = box.querySelector('#history-list');
+            let selected = null;
+            versions.forEach((v) => {
+                const b = document.createElement('button');
+                b.type = 'button';
+                b.className = 'history-item';
+                b.innerHTML = `<strong>${esc(v.date)}</strong><span class="muted small">${esc(v.author || '—')} · ${esc(v.icon || '')} ${esc(v.title || 'Sans titre')}</span>`;
+                b.addEventListener('click', async () => {
+                    list.querySelectorAll('.active').forEach((x) => x.classList.remove('active'));
+                    b.classList.add('active');
+                    selected = v.id;
+                    const { version } = await apiGet('version', { id, versionId: v.id });
+                    box.querySelector('#history-info').textContent = `${version.icon || ''} ${version.title || 'Sans titre'} — version du ${v.date}`;
+                    if (preview) { try { preview.destroy(); } catch { /* ignore */ } }
+                    box.querySelector('#history-editor').innerHTML = '';
+                    preview = NotesEditor.create({ holder: 'history-editor', data: version.content, readOnly: true, csrf: '', uploadUrl: () => '' });
+                    box.querySelector('#history-restore').disabled = false;
+                });
+                list.append(b);
+            });
+            box.querySelector('#history-restore').addEventListener('click', async () => {
+                if (!selected || !confirm('Remplacer le contenu actuel par cette version ? (la version actuelle reste dans l\'historique)')) return;
+                const res = await api('restore_version', { id, versionId: selected });
+                applySidebar(res);
+                box.classList.remove('wide');
+                closeModal();
+                state.dirty = false;
+                await openPage(id, false, res.page);
+                toast('Version restaurée.');
+            });
+        });
+    }
 
     // ---------- Recherche (Ctrl+K) ----------
     function openSearch() {
@@ -732,12 +804,22 @@
         '-',
         { label: '↩ Se déconnecter', action: async () => { await flushSave(); $('#logout-form').submit(); } },
     ]));
-    document.querySelectorAll('[data-new-page]').forEach((b) => b.addEventListener('click', () => newPage(b.dataset.newPage)));
+    document.querySelectorAll('[data-new-page]').forEach((b) => b.addEventListener('click', (e) => openNewPageMenu(e.currentTarget, b.dataset.newPage)));
+    $('#templates-fold').addEventListener('click', () => {
+        const list = $('[data-list="templates"]');
+        list.hidden = !list.hidden;
+        $('#templates-fold').textContent = (list.hidden ? '▸' : '▾') + ' Modèles';
+    });
     $('[data-nav="home"]').addEventListener('click', (e) => { e.preventDefault(); showHome(); closeSidebarMobile(); });
     $('#sidebar-open').addEventListener('click', () => document.body.classList.add('sidebar-open'));
     $('#sidebar-close').addEventListener('click', closeSidebarMobile);
     $('#sidebar-overlay').addEventListener('click', closeSidebarMobile);
     function closeSidebarMobile() { document.body.classList.remove('sidebar-open'); }
+
+    // ---------- Application installable (PWA) ----------
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js').catch(() => { /* facultatif */ });
+    }
 
     // ---------- Démarrage ----------
     (async () => {

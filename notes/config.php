@@ -41,4 +41,7 @@ return [
     'openai_model' => 'gpt-4o-mini',
     'openai_timeout' => 60,
     'openai_base_url' => 'https://api.openai.com/v1',
+
+    // Développement uniquement : autorise l'aperçu de liens vers des adresses locales (NE PAS activer en production)
+    'unfurl_allow_private' => false,
 ];

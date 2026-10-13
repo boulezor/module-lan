@@ -6,7 +6,7 @@ declare(strict_types=1);
  * Une sous-page hérite toujours de l'espace de sa racine.
  */
 
-const PAGE_LIST_COLUMNS = 'id, space, owner_id, parent_id, position, title, icon, updated_at, share_token IS NOT NULL AS shared';
+const PAGE_LIST_COLUMNS = 'id, space, owner_id, parent_id, position, title, icon, updated_at, share_token IS NOT NULL AS shared, is_template';
 
 /** Condition SQL « page visible par cet utilisateur » (2 paramètres : rien, puis l'id). */
 function visible_sql(string $alias = 'pages'): string
@@ -45,6 +45,122 @@ function next_position(?int $parentId, string $space, int $ownerId): float
     $max = db_row('SELECT MAX(position) AS m FROM pages WHERE parent_id IS ? AND space = ? AND (space = \'team\' OR owner_id = ?)',
         [$parentId, $space, $ownerId]);
     return (float) ($max['m'] ?? 0) + 1;
+}
+
+/** Remplace {{date}}, {{heure}} et {{auteur}} dans un modèle. */
+function fill_template(string $text, array $user): string
+{
+    return strtr($text, ['{{date}}' => date('d/m/Y'), '{{auteur}}' => $user['name'], '{{heure}}' => date('H\hi')]);
+}
+
+/** Nouvelle page à partir d'un modèle (contenu, icône et couverture copiés). */
+function create_page_from_template(array $user, array $template, string $space, ?int $parentId): array
+{
+    $page = create_page($user, $space, $parentId, fill_template($template['title'], $user), $template['icon']);
+    $content = $template['content'] !== '' ? fill_template($template['content'], $user) : '';
+    $decoded = $content !== '' ? json_decode($content, true) : null;
+    db_exec('UPDATE pages SET cover = ?, content = ?, search_text = ? WHERE id = ?',
+        [$template['cover'], $decoded ? $content : '', $decoded ? blocks_to_text($decoded) : '', $page['id']]);
+    return find_page($user, (int) $page['id']);
+}
+
+/** Modèles fournis, créés une seule fois (modifiables ou supprimables ensuite). */
+function seed_templates(): void
+{
+    if (setting('templates_seeded') === '1') {
+        return;
+    }
+    set_setting('templates_seeded', '1');
+    $templates = [
+        ['📋', 'Réunion du {{date}}', <<<MD
+            **Date :** {{date}} · **Rédigé par :** {{auteur}}
+
+            ## Participants
+            - …
+
+            ## Ordre du jour
+            1. …
+
+            ## Discussion
+
+            ## Décisions
+            - …
+
+            ## Actions
+            - [ ] Action — responsable — échéance
+            MD],
+        ['🎪', 'Nouvel événement', <<<MD
+            **Client :** … · **Date :** … · **Lieu :** …
+
+            ## Informations
+            - Contact sur place :
+            - Horaires montage / démontage :
+            - Accès / stationnement :
+
+            ## Matériel
+            - [ ] Chapiteaux
+            - [ ] Tables et chaises
+            - [ ] Éclairage
+            - [ ] Plancher
+
+            ## Équipe
+            - …
+
+            ## Checklist
+            - [ ] Devis signé
+            - [ ] Acompte reçu
+            - [ ] Repérage fait
+            - [ ] Montage
+            - [ ] Démontage
+            - [ ] Facture envoyée
+
+            ## Notes
+            MD],
+        ['🚀', 'Nouveau projet', <<<MD
+            ## Objectif
+            Qu'est-ce qu'on veut obtenir, et pour quand ?
+
+            ## Contexte
+
+            ## Étapes
+            - [ ] Étape 1
+            - [ ] Étape 2
+            - [ ] Étape 3
+
+            ## Ressources
+            - …
+
+            ## Risques et questions
+            - …
+            MD],
+        ['📔', 'Journal du {{date}}', <<<MD
+            ## Aujourd'hui
+            - …
+
+            ## Idées
+            - …
+
+            ## À faire demain
+            - [ ] …
+            MD],
+        ['📘', 'Procédure', <<<MD
+            ## Objectif
+            À quoi sert cette procédure ?
+
+            ## Étapes
+            1. Première étape
+            2. Deuxième étape
+            3. Troisième étape
+
+            ## Points d'attention
+            > À ne pas oublier…
+            MD],
+    ];
+    foreach ($templates as $i => [$icon, $title, $markdown]) {
+        $blocks = markdown_to_blocks($markdown);
+        db_exec("INSERT INTO pages (space, title, icon, content, search_text, position, is_template) VALUES ('team', ?, ?, ?, ?, ?, 1)",
+            [$title, $icon, json_encode(['blocks' => $blocks], JSON_UNESCAPED_UNICODE), blocks_to_text(['blocks' => $blocks]), $i + 1]);
+    }
 }
 
 function create_page(array $user, string $space, ?int $parentId, string $title = '', string $icon = ''): array
@@ -213,5 +329,43 @@ function page_payload(array $user, array $page): array
         'favorite' => (bool) db_row('SELECT 1 FROM favorites WHERE user_id = ? AND page_id = ?', [$user['id'], $page['id']]),
         'breadcrumb' => page_breadcrumb($user, $page),
         'trashed' => $page['trashed_at'] !== null,
+        'isTemplate' => (bool) $page['is_template'],
     ];
+}
+
+// --- Historique des versions -------------------------------------------
+
+const VERSION_EVERY_SECONDS = 600; // une version au plus toutes les 10 minutes par auteur
+const VERSIONS_KEPT = 100;
+
+/**
+ * Avant d'enregistrer une modification : garde l'état actuel de la page comme version,
+ * sauf si la dernière version est récente et du même auteur (évite une version par frappe).
+ */
+function snapshot_before_save(array $page, array $user): void
+{
+    if ($page['content'] === '' && $page['title'] === '') {
+        return; // page neuve, rien à garder
+    }
+    $last = db_row('SELECT author_id, created_at FROM page_versions WHERE page_id = ? ORDER BY id DESC LIMIT 1', [$page['id']]);
+    $lastEditor = (int) ($page['updated_by'] ?? 0);
+    $recent = $last && strtotime($last['created_at'] . ' UTC') > time() - VERSION_EVERY_SECONDS;
+    if ($recent && $lastEditor === (int) $user['id']) {
+        return;
+    }
+    db_exec('INSERT INTO page_versions (page_id, title, icon, cover, content, author_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [$page['id'], $page['title'], $page['icon'], $page['cover'], $page['content'], $page['updated_by'], $page['updated_at']]);
+    // Ne garde que les N dernières versions
+    db_exec('DELETE FROM page_versions WHERE page_id = ? AND id NOT IN (SELECT id FROM page_versions WHERE page_id = ? ORDER BY id DESC LIMIT ' . VERSIONS_KEPT . ')',
+        [$page['id'], $page['id']]);
+}
+
+/** @return list<array<string, mixed>> */
+function page_versions(int $pageId): array
+{
+    return array_map(fn($v) => [
+        'id' => (int) $v['id'], 'title' => $v['title'], 'icon' => $v['icon'],
+        'author' => $v['author'] ?? '', 'date' => local_time($v['created_at']),
+    ], db_rows('SELECT v.id, v.title, v.icon, v.created_at, u.name AS author FROM page_versions v
+                LEFT JOIN users u ON u.id = v.author_id WHERE v.page_id = ? ORDER BY v.id DESC', [$pageId]));
 }
