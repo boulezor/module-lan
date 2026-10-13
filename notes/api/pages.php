@@ -18,7 +18,7 @@ function sidebar_data(array $user): array
     return [
         'tree' => array_map(fn($p) => [
             'id' => (int) $p['id'], 'parentId' => $p['parent_id'] ? (int) $p['parent_id'] : null, 'space' => $p['space'],
-            'title' => $p['title'], 'icon' => $p['icon'], 'shared' => (bool) $p['shared'], 'isTemplate' => (bool) $p['is_template'],
+            'title' => $p['title'], 'icon' => $p['icon'], 'shared' => (bool) $p['shared'], 'isTemplate' => (bool) $p['is_template'], 'kind' => $p['kind'],
         ], page_tree($user)),
         'favorites' => array_map(fn($r) => (int) $r['page_id'],
             db_rows('SELECT f.page_id FROM favorites f JOIN pages p ON p.id = f.page_id WHERE f.user_id = ? AND p.trashed_at IS NULL ORDER BY f.created_at', [$user['id']])),
@@ -44,7 +44,7 @@ try {
 
         case 'recent':
             json_response(['pages' => array_map(fn($p) => $p + ['updated' => local_time($p['updated_at'])],
-                db_rows('SELECT p.id, p.title, p.icon, p.space, p.updated_at, u.name AS updated_by FROM pages p
+                db_rows('SELECT p.id, p.title, p.icon, p.space, p.kind, p.updated_at, u.name AS updated_by FROM pages p
                          LEFT JOIN users u ON u.id = p.updated_by
                          WHERE p.trashed_at IS NULL AND ' . visible_sql('p') . ' ORDER BY p.updated_at DESC LIMIT 12', [$user['id']]))]);
 
@@ -60,7 +60,8 @@ try {
             if (!empty($in['templateId'])) {
                 $page = create_page_from_template($user, page_or_404($user, (int) $in['templateId']), (string) ($in['space'] ?? 'team'), $parentId);
             } else {
-                $page = create_page($user, (string) ($in['space'] ?? 'team'), $parentId, clean_line((string) ($in['title'] ?? ''), 200));
+                $page = create_page($user, (string) ($in['space'] ?? 'team'), $parentId, clean_line((string) ($in['title'] ?? ''), 200), '',
+                    ($in['kind'] ?? '') === 'database' ? 'database' : 'page');
             }
             json_response(['page' => page_payload($user, $page)] + sidebar_data($user));
 
@@ -86,6 +87,9 @@ try {
                 $content = sanitize_content($in['content']);
                 $fields['content'] = json_encode($content, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
                 $fields['search_text'] = mb_substr(blocks_to_text($content), 0, 200000);
+                if ($page['kind'] === 'row' && ($db = find_page($user, (int) $page['parent_id']))) {
+                    $fields['search_text'] = mb_substr(row_search_text(db_config($db), json_decode($page['props'] ?: '[]', true) ?: [], $fields['content']), 0, 200000);
+                }
             }
             if ($fields) {
                 snapshot_before_save($page, $user);

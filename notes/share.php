@@ -14,6 +14,29 @@ if (!$page) {
     exit;
 }
 
+// Base de données partagée : tableau en lecture seule
+if ($page['kind'] === 'database') {
+    $config = db_config($page);
+    header('X-Robots-Tag: noindex, nofollow');
+    page_open($page['title'] ?: 'Sans titre', 'share');
+    echo '<main class="share-view"><div class="page-inner"><h1 class="page-title">' . e(trim($page['icon'] . ' ' . ($page['title'] ?: 'Sans titre'))) . '</h1>';
+    echo '<div class="db-scroll"><table class="db-table readonly"><thead><tr><th>Nom</th>';
+    foreach ($config['properties'] as $prop) {
+        echo '<th>' . e($prop['name']) . '</th>';
+    }
+    echo '</tr></thead><tbody>';
+    foreach (db_rows_of((int) $page['id']) as $row) {
+        echo '<tr><td>' . e(trim($row['icon'] . ' ' . ($row['title'] ?: 'Sans titre'))) . '</td>';
+        foreach ($config['properties'] as $prop) {
+            echo '<td>' . e(prop_text($prop, ((array) $row['props'])[$prop['id']] ?? null)) . '</td>';
+        }
+        echo '</tr>';
+    }
+    echo '</tbody></table></div></div><footer class="share-footer muted small">Base partagée en lecture seule · ' . e(config('site_title')) . '</footer></main>';
+    page_close();
+    exit;
+}
+
 // Autorise l'affichage des images de cette page pour ce visiteur
 $_SESSION['shared_pages'] = array_values(array_unique([...($_SESSION['shared_pages'] ?? []), (int) $page['id']]));
 

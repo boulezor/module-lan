@@ -80,4 +80,4 @@ page_open($current ? ($current['title'] ?: 'Sans titre') : 'Accueil', 'app-body'
 <form method="post" action="login.php" id="logout-form" hidden><?= csrf_field() ?><input type="hidden" name="action" value="logout"></form>
 <script type="application/json" id="boot"><?= json_encode($boot, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?></script>
 <?php
-page_close(array_merge(editor_scripts(), ['assets/tools.js', 'assets/app.js']));
+page_close(array_merge(editor_scripts(), ['assets/tools.js', 'assets/db.js', 'assets/db-views.js', 'assets/app.js']));
