@@ -474,3 +474,12 @@ body.share { overflow: auto; }
 }
 .db-tools input.db-search { display: inline-block; width: 170px; margin: 0; padding: 5px 8px; }
 @media (max-width: 800px) { .db-tools input.db-search { width: 120px; } }
+
+/* Tableaux (bloc Tableau) : bordures visibles et ligne d'en-tête comme Notion */
+.codex-editor .tc-wrap { --color-border: #dcdbd7; --color-background: #f7f7f5; }
+.codex-editor .tc-table { border-top: 1px solid #dcdbd7; border-left: 1px solid #dcdbd7; }
+.codex-editor .tc-row, .codex-editor .tc-cell { border-color: #dcdbd7; }
+.codex-editor .tc-cell { border-right: 1px solid #dcdbd7; padding: 7px 10px; line-height: 1.5; }
+.codex-editor .tc-row::after { border-bottom: 1px solid #dcdbd7; }
+.codex-editor .tc-table--heading .tc-row:first-child { background: #f7f7f5; font-weight: 600; }
+.codex-editor .tc-table--heading .tc-row:first-child [contenteditable]:empty::before { font-weight: 400; }

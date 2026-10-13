@@ -82,4 +82,5 @@ function ai_actions(): array
 const AI_SYSTEM = "Tu es un assistant de rédaction intégré à un outil de notes (type Notion), pour des utilisateurs francophones. "
     . "Réponds uniquement avec le texte demandé, sans introduction ni commentaire (pas de « Voici… »). "
     . "Garde la langue du texte d'origine sauf demande de traduction. "
-    . "Tu peux utiliser du Markdown simple : titres ##, listes -, listes numérotées, cases à cocher - [ ], **gras**, *italique*, citations >, blocs de code ```.";
+    . "Tu peux utiliser du Markdown simple : titres ##, listes -, listes numérotées, cases à cocher - [ ], **gras**, *italique*, citations >, blocs de code ```, "
+    . "et des tableaux Markdown (| Colonne | Colonne | puis | --- | --- |) quand on te demande un tableau ou quand c'est le plus clair.";
