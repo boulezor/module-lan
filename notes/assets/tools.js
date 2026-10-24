@@ -4,6 +4,35 @@
  * Utilisé par l'application (index.php) et par la vue publique (share.php).
  */
 (() => {
+    /*
+     * Requêtes vers le serveur avec le jeton de sécurité. Si la session a expiré (page restée ouverte longtemps),
+     * on récupère un nouveau jeton et on refait la requête une fois, sans déranger l'utilisateur.
+     */
+    const NotesCsrf = {
+        token: '',
+        async refresh() {
+            const res = await fetch('api/pages.php?action=csrf', { cache: 'no-store' });
+            if (res.status === 401) { location.href = 'login.php?next=' + encodeURIComponent(location.pathname.split('/').pop() + location.search); return false; }
+            const data = await res.json().catch(() => ({}));
+            if (data.csrf) { NotesCsrf.token = data.csrf; document.querySelectorAll('input[name=csrf]').forEach((i) => { i.value = data.csrf; }); }
+            return !!data.csrf;
+        },
+    };
+    async function notesFetch(url, options = {}) {
+        const send = () => fetch(url, { ...options, headers: { ...(options.headers || {}), 'X-CSRF-Token': NotesCsrf.token } });
+        let res = await send();
+        if (res.status === 403 && (options.method || 'GET') !== 'GET') {
+            const body = await res.clone().json().catch(() => ({}));
+            if (/jeton/i.test(body.error || '') && await NotesCsrf.refresh()) res = await send();
+        }
+        return res;
+    }
+    window.NotesCsrf = NotesCsrf;
+    window.notesFetch = notesFetch;
+    // Garde la session active tant que la page est ouverte (et renouvelle le jeton si besoin)
+    setInterval(() => { if (NotesCsrf.token && document.visibilityState === 'visible') NotesCsrf.refresh().catch(() => {}); }, 15 * 60 * 1000);
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && NotesCsrf.token) NotesCsrf.refresh().catch(() => {}); });
+
     const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const INLINE_SANITIZE = { b: true, strong: true, i: true, em: true, u: true, s: true, a: { href: true }, mark: { class: true }, code: { class: true }, br: true };
 
@@ -313,9 +342,9 @@
         actions: {},
         async request(action, prompt, text) {
             try {
-                const res = await fetch('api/ai.php', {
+                const res = await notesFetch('api/ai.php', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': NotesAI.csrf },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action, prompt, text }),
                 });
                 const data = await res.json().catch(() => ({ error: `Erreur serveur (${res.status}).` }));
@@ -498,7 +527,7 @@
             const upload = (kind) => async (file) => {
                 const body = new FormData();
                 body.append('file', file);
-                const res = await fetch(options.uploadUrl(kind), { method: 'POST', headers: { 'X-CSRF-Token': options.csrf }, body });
+                const res = await notesFetch(options.uploadUrl(kind), { method: 'POST', body });
                 const data = await res.json().catch(() => ({ success: 0, error: `Erreur serveur (${res.status})` }));
                 if (!data.success) options.onError?.(data.error || 'Envoi impossible.');
                 return data;

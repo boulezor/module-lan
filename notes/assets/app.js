@@ -5,6 +5,7 @@
     const esc = window.NotesEditor.esc;
     const state = { tree: [], favorites: [], page: null, editor: null, dirty: false, saving: null, conflict: false, expanded: new Set() };
     NotesAI.csrf = boot.csrf;
+    NotesCsrf.token = boot.csrf;
     NotesAI.actions = boot.aiActions;
 
     try { JSON.parse(localStorage.getItem('notes-expanded') || '[]').forEach((id) => state.expanded.add(id)); } catch { /* stockage indisponible */ }
@@ -12,9 +13,9 @@
 
     // ---------- Appels serveur ----------
     async function api(action, payload = {}) {
-        const res = await fetch('api/pages.php', {
+        const res = await notesFetch('api/pages.php', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': boot.csrf },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action, ...payload }),
         });
         const data = await res.json().catch(() => ({ error: `Erreur serveur (${res.status}).` }));
@@ -487,7 +488,7 @@
             closeMenu();
             const body = new FormData();
             body.append('file', file);
-            const res = await fetch(`api/upload.php?page=${state.page.id}&kind=image`, { method: 'POST', headers: { 'X-CSRF-Token': boot.csrf }, body });
+            const res = await notesFetch(`api/upload.php?page=${state.page.id}&kind=image`, { method: 'POST', body });
             const data = await res.json().catch(() => ({}));
             data.success ? setCover(data.file.url) : toast(data.error || 'Envoi impossible.', true);
         });
@@ -824,7 +825,7 @@
         { label: '👤 Mon compte', action: () => { location.href = 'compte.php'; } },
         ...(boot.user.isAdmin ? [{ label: '⚙️ Administration', action: () => { location.href = 'admin.php'; } }] : []),
         '-',
-        { label: '↩ Se déconnecter', action: async () => { await flushSave(); $('#logout-form').submit(); } },
+        { label: '↩ Se déconnecter', action: async () => { await flushSave(); await NotesCsrf.refresh().catch(() => {}); $('#logout-form').submit(); } },
     ]));
     document.querySelectorAll('[data-new-page]').forEach((b) => b.addEventListener('click', (e) => openNewPageMenu(e.currentTarget, b.dataset.newPage)));
     $('#templates-fold').addEventListener('click', () => {

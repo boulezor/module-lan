@@ -26,9 +26,9 @@
     let S = null;     // état de la base affichée
 
     async function dbApi(action, payload = {}) {
-        const res = await fetch('api/db.php', {
+        const res = await notesFetch('api/db.php', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': ctx.boot.csrf },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action, ...payload }),
         });
         const data = await res.json().catch(() => ({ error: `Erreur serveur (${res.status}).` }));
