@@ -23,7 +23,11 @@ page_open($game['name'], 'screen theme-' . $game['theme'] . ($manager ? ' is-man
 <div class="screen-bg" aria-hidden="true"></div>
 <div class="screen-wrap">
     <header class="screen-top">
-        <div class="screen-title"><span class="logo-ball">B</span> <span id="s-name"><?= e($game['name']) ?></span></div>
+        <div class="screen-title">
+            <span class="logo-ball">B</span>
+            <img class="school-logo" id="s-logo" alt="" hidden>
+            <span class="title-text"><span class="school-title" id="s-brand" hidden></span><span id="s-name"><?= e($game['name']) ?></span></span>
+        </div>
         <div class="screen-phase" id="s-phase"></div>
         <div class="screen-count"><b id="s-count">0</b><span id="s-max">/ <?= (int) $game['type'] ?></span></div>
     </header>
@@ -31,6 +35,7 @@ page_open($game['name'], 'screen theme-' . $game['theme'] . ($manager ? ' is-man
         <section class="screen-left">
             <div class="stage">
                 <div class="stage-glow" aria-hidden="true"></div>
+                <img class="stage-logo" id="s-stage-logo" alt="" aria-hidden="true" hidden>
                 <div class="big-ball-wrap" id="s-ball"></div>
                 <div class="stage-label" id="s-label">En attente du premier tirage…</div>
             </div>
@@ -76,7 +81,7 @@ page_open($game['name'], 'screen theme-' . $game['theme'] . ($manager ? ' is-man
         <dt><kbd>Espace</kbd></dt><dd>tirer une boule au hasard</dd>
         <dt><kbd>Retour arrière</kbd></dt><dd>annuler la dernière boule</dd>
         <dt><kbd>A</kbd></dt><dd>lancer / mettre en pause le tirage automatique</dd>
-        <dt><kbd>Échap</kbd></dt><dd>masquer le message, le carton ou l'écran BINGO</dd>
+        <dt><kbd>Échap</kbd></dt><dd>masquer le message, la grille vérifiée ou l'écran BINGO</dd>
         <dt><kbd>S</kbd> · <kbd>F</kbd></dt><dd>son · plein écran</dd>
     </dl>
     <p>La barre d'outils apparaît quand la souris bouge.</p>

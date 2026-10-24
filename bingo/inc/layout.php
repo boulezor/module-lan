@@ -16,6 +16,8 @@ function page_open(string $title, string $bodyClass = '', array $styles = ['asse
     <link rel="stylesheet" href="<?= asset($style) ?>">
     <?php endforeach; ?>
     <meta name="theme-color" content="#14102b">
+    <?php $school = school_theme(); ?>
+    <style>:root { --sm-1: <?= e($school['color1']) ?>; --sm-2: <?= e($school['color2']) ?>; }</style>
 </head>
 <body class="<?= e($bodyClass) ?>"<?php foreach ($bodyData as $key => $value): ?> data-<?= e($key) ?>="<?= e((string) $value) ?>"<?php endforeach; ?>>
     <?php

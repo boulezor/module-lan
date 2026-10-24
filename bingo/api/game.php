@@ -111,7 +111,7 @@ switch ($action) {
         $name = clean_line((string) ($input['name'] ?? ''), 80);
         $type = (int) ($input['type'] ?? $game['type']) === 75 ? 75 : 90;
         $set = [
-            'theme' => array_key_exists((string) ($input['theme'] ?? ''), GAME_THEMES) ? (string) $input['theme'] : $game['theme'],
+            'theme' => array_key_exists((string) ($input['theme'] ?? ''), available_themes($user, $game)) ? (string) $input['theme'] : $game['theme'],
             'voice' => empty($input['voice']) ? 0 : 1,
             'suspense' => empty($input['suspense']) ? 0 : 1,
         ];
@@ -163,7 +163,7 @@ switch ($action) {
     case 'check':
         $card = (int) ($input['card'] ?? 0);
         if ($card < 1 || $card > (int) config('max_cards')) {
-            $error = 'Numéro de carton invalide (1 à ' . (int) config('max_cards') . ').';
+            $error = 'Numéro de grille invalide (1 à ' . (int) config('max_cards') . ').';
             break;
         }
         $extra['check'] = check_card($game, $card, array_column(game_draws($id), 'n'));
@@ -179,6 +179,11 @@ switch ($action) {
 
     case 'overlay_clear':
         touch_game($id, ['overlay' => '']);
+        break;
+
+    case 'run_delete':
+        db_exec('DELETE FROM print_runs WHERE id = ? AND game_id = ?', [(int) ($input['run'] ?? 0), $id]);
+        touch_game($id);
         break;
 
     case 'new_link':

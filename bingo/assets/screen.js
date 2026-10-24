@@ -46,6 +46,18 @@
             body.className = body.className.replace(/theme-\S+/, 'theme-' + next.theme);
         }
         $('s-name').textContent = next.name;
+        // Thème « École Saint-Martin » : logo et titre de l'école
+        const school = next.theme === 'saintmartin' ? next.school : null;
+        $('s-brand').hidden = !school;
+        $('s-brand').textContent = school ? school.title : '';
+        for (const img of [$('s-logo'), $('s-stage-logo')]) {
+            img.hidden = !(school && school.logo);
+            if (school && school.logo && img.getAttribute('src') !== school.logo) img.src = school.logo;
+        }
+        if (school) {
+            body.style.setProperty('--sm-1', school.color1);
+            body.style.setProperty('--sm-2', school.color2);
+        }
         document.title = next.name + ' · Bingo';
         const phase = next.phase;
         $('s-phase').innerHTML = `<span class="phase-label">On joue</span> <b>${escapeHtml(phase.name)}</b>`
@@ -154,9 +166,10 @@
         box.className = 'overlay overlay-' + overlay.kind;
         if (overlay.kind === 'bingo') {
             const who = overlay.name ? `<div class="bingo-name">${escapeHtml(overlay.name)}</div>` : '';
-            const card = overlay.card ? `<div class="bingo-card-no">Carton n° ${overlay.card}</div>` : '';
+            const card = overlay.card ? `<div class="bingo-card-no">Grille n° ${overlay.card}</div>` : '';
             const prize = overlay.prize ? `<div class="bingo-prize">🎁 ${escapeHtml(overlay.prize)}</div>` : '';
-            box.innerHTML = `<div class="bingo-burst"><div class="bingo-word">${[...'BINGO'].map((l, i) => `<span style="--i:${i}">${l}</span>`).join('')}<span class="bang" style="--i:5">!</span></div>`
+            const logo = state.school && state.school.logo && state.theme === 'saintmartin' ? `<img class="bingo-logo" src="${escapeHtml(state.school.logo)}" alt="">` : '';
+            box.innerHTML = `<div class="bingo-burst">${logo}<div class="bingo-word">${[...'BINGO'].map((l, i) => `<span style="--i:${i}">${l}</span>`).join('')}<span class="bang" style="--i:5">!</span></div>`
                 + `<div class="bingo-phase">${escapeHtml(overlay.phase)}</div>${who}${card}${prize}</div>`;
             if (!silent) {
                 confetti();
@@ -165,7 +178,7 @@
             }
         } else if (overlay.kind === 'card' && overlay.check) {
             const check = overlay.check;
-            box.innerHTML = `<div class="card-show"><h2>Vérification du carton n° ${check.card}</h2>`
+            box.innerHTML = `<div class="card-show"><h2>Vérification de la grille n° ${check.card}</h2>`
                 + cardHtml(check, state.draws, state.type)
                 + `<p class="card-result ${check.lines || check.full ? 'ok' : 'ko'}">${cardSummary(check, state.type)}</p></div>`;
         } else if (overlay.kind === 'message') {

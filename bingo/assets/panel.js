@@ -24,6 +24,7 @@
         } catch (e) { /* nouvelle tentative au prochain tour */ }
         setTimeout(poll, document.hidden ? 4000 : 1500);
     }
+    poll.now = () => { if (state) state.rev = -1; };
 
     async function act(action, params = {}) {
         if (busy && ['add', 'draw', 'undo'].includes(action)) return {};
@@ -92,9 +93,19 @@
         $('p-phase-prev').disabled = phase.index === 0;
         $('p-phase-next').disabled = phase.index >= phase.count - 1;
         $('p-winners').innerHTML = next.winners.length ? '<h3>🏆 Gagnants</h3><ul class="winners">' + next.winners.map((w) => `<li>
-                <span><b>${escapeHtml(w.phase)}</b> · ${escapeHtml(w.name || 'Sans nom')}${w.card ? ` <span class="muted">(carton ${w.card})</span>` : ''}
+                <span><b>${escapeHtml(w.phase)}</b> · ${escapeHtml(w.name || 'Sans nom')}${w.card ? ` <span class="muted">(grille ${w.card})</span>` : ''}
                 <small class="muted">${w.draws} boules · ${w.time}${w.prize ? ' · 🎁 ' + escapeHtml(w.prize) : ''}</small></span>
                 <button type="button" class="icon-btn" data-winner="${w.id}" title="Retirer">✕</button></li>`).join('') + '</ul>' : '';
+
+        // Planches imprimées
+        if (next.runs) {
+            $('p-print-hint').textContent = `Prochaine série : grilles numérotées à partir du n° ${next.next_card}.`;
+            $('p-runs').innerHTML = next.runs.length ? '<ul class="runs">' + next.runs.map((r) => `<li>
+                <span><b>${r.sheets} planche${r.sheets > 1 ? 's' : ''} de ${r.per} grille${r.per > 1 ? 's' : ''}</b>
+                <small class="muted">n° ${r.from} à ${r.to} · ${r.date}</small></span>
+                <a class="btn btn-small" target="_blank" rel="noopener" href="cartons.php?id=${id}&from=${r.from}&to=${r.to}&per=${r.per}">Réimprimer</a>
+                <button type="button" class="icon-btn" data-run="${r.id}" title="Supprimer la série">✕</button></li>`).join('') + '</ul>' : '';
+        }
 
         // Ce qui est affiché par-dessus l'écran
         const overlay = next.overlay;
@@ -102,7 +113,7 @@
         if (overlay) {
             $('p-overlay-text').textContent = '📺 À l\'écran : ' + ({
                 bingo: `BINGO ! ${overlay.phase}${overlay.name ? ' – ' + overlay.name : ''}`,
-                card: `vérification du carton n° ${overlay.card}`,
+                card: `vérification de la grille n° ${overlay.card}`,
                 message: `« ${overlay.text} »`,
             }[overlay.kind] || '');
         }
@@ -226,6 +237,16 @@
         const what = event.target.closest('[data-check]')?.dataset.check;
         if (what === 'show') check(true);
         if (what === 'win') openWinner(+$('p-check-no').value);
+    });
+
+    /* ---------- Planches ---------- */
+
+    $('p-print').addEventListener('submit', () => setTimeout(() => poll.now(), 1500));
+    $('p-runs').addEventListener('click', (event) => {
+        const button = event.target.closest('[data-run]');
+        if (button && confirm('Supprimer cette série de la liste ? Ses numéros pourront être réattribués à une prochaine série : à faire seulement si ces planches n\'ont pas été distribuées.')) {
+            act('run_delete', { run: +button.dataset.run });
+        }
     });
 
     /* ---------- Message et incrustations ---------- */

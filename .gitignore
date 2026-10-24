@@ -5,3 +5,4 @@ config.local.php
 *.sqlite-*
 */data/files/
 */data/sessions/
+*/data/theme/

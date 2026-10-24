@@ -22,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $id = create_game($user, mb_substr($game['name'] . ' (copie)', 0, 80), (int) $game['type']);
         db_exec('UPDATE games SET theme = ?, voice = ?, suspense = ?, phases = ?, auto_interval = ?, draw_mode = ? WHERE id = ?',
             [$game['theme'], $game['voice'], $game['suspense'], $game['phases'], $game['auto_interval'], $game['draw_mode'], $id]);
-        flash('success', 'Session dupliquée (mêmes réglages et phases, nouveaux cartons, aucun tirage).');
+        flash('success', 'Session dupliquée (mêmes réglages et phases, nouvelles grilles, aucun tirage).');
     }
     redirect('index.php');
 }

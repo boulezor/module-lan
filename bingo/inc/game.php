@@ -7,6 +7,9 @@ declare(strict_types=1);
  */
 
 const GAME_THEMES = ['nuit' => 'Nuit étoilée', 'fete' => 'Fête', 'casino' => 'Casino', 'clair' => 'Clair'];
+// Thèmes réservés aux administrateurs (logo et couleurs réglés dans l'administration)
+const ADMIN_THEMES = ['saintmartin' => 'École Saint-Martin'];
+const CARDS_PER_SHEET_MAX = 6;
 const AUTO_MIN_INTERVAL = 4;
 const AUTO_MAX_INTERVAL = 120;
 
@@ -52,6 +55,51 @@ function parse_phases(string $text): array
 function phases_to_text(array $phases): string
 {
     return implode("\n", array_map(fn($p) => $p['name'] . ($p['prize'] !== '' ? ' | ' . $p['prize'] : ''), $phases));
+}
+
+/** Thèmes proposés : les thèmes réservés seulement aux admins (ou s'ils sont déjà appliqués à la session). */
+function available_themes(?array $user, ?array $game = null): array
+{
+    $themes = GAME_THEMES;
+    foreach (ADMIN_THEMES as $key => $label) {
+        if (($user && (int) $user['is_admin']) || ($game && $game['theme'] === $key)) {
+            $themes[$key] = $label;
+        }
+    }
+    return $themes;
+}
+
+/** Thème « École Saint-Martin » : titre, couleurs et logo (envoyé par un admin, rangé dans le dossier privé). */
+function school_theme(): array
+{
+    $logo = school_logo_path();
+    return [
+        'title' => setting('school_title', 'Bingo École Saint-Martin'),
+        'color1' => setting('school_color1', '#1d4f91'),
+        'color2' => setting('school_color2', '#e2232e'),
+        'logo' => $logo ? 'logo.php?v=' . filemtime($logo) : null,
+    ];
+}
+
+function school_logo_path(): ?string
+{
+    foreach (['png', 'jpg', 'webp', 'gif'] as $ext) {
+        $path = config('private_dir') . '/theme/logo.' . $ext;
+        if (is_file($path)) {
+            return $path;
+        }
+    }
+    return null;
+}
+
+/** Variables CSS et attributs du thème d'une session (pour la balise body) */
+function theme_style(string $theme): string
+{
+    if ($theme !== 'saintmartin') {
+        return '';
+    }
+    $school = school_theme();
+    return '--sm-1: ' . $school['color1'] . '; --sm-2: ' . $school['color2'] . ';';
 }
 
 function find_game(int $id): ?array
@@ -189,14 +237,66 @@ function game_state(array $game, bool $manager): array
             'time' => date('H\hi', (int) strtotime($w['created_at'] . ' UTC')),
         ], db_rows('SELECT * FROM winners WHERE game_id = ? ORDER BY id', [$game['id']])),
     ];
+    if ($game['theme'] === 'saintmartin') {
+        $state['school'] = school_theme();
+    }
     if ($manager) {
         $state['id'] = (int) $game['id'];
         $state['interval'] = (int) $game['auto_interval'];
+        $state['next_card'] = next_card_number((int) $game['id']);
+        $state['runs'] = array_map(fn($r) => [
+            'id' => (int) $r['id'], 'per' => (int) $r['per_sheet'], 'sheets' => (int) $r['sheets'],
+            'from' => (int) $r['first_card'], 'to' => (int) $r['last_card'], 'date' => local_time($r['created_at']),
+        ], db_rows('SELECT * FROM print_runs WHERE game_id = ? ORDER BY id', [$game['id']]));
     }
     return $state;
 }
 
-/* ---------- Cartons ---------- */
+/* ---------- Cartons et planches ---------- */
+
+/** Premier numéro de grille libre : les séries imprimées se suivent sans jamais réutiliser un numéro. */
+function next_card_number(int $gameId): int
+{
+    return (int) (db_row('SELECT MAX(last_card) AS m FROM print_runs WHERE game_id = ?', [$gameId])['m'] ?? 0) + 1;
+}
+
+/** Nouvelle série : $sheets planches de $perSheet grilles. Renvoie la série ou un message d'erreur. */
+function create_print_run(array $game, int $sheets, int $perSheet): array|string
+{
+    $perSheet = max(1, min(CARDS_PER_SHEET_MAX, $perSheet));
+    $first = next_card_number((int) $game['id']);
+    $last = $first + $sheets * $perSheet - 1;
+    if ($sheets < 1 || $sheets > 1000) {
+        return 'Nombre de planches invalide (1 à 1000).';
+    }
+    if ($last > (int) config('max_cards')) {
+        return 'Trop de grilles : le numéro maximum est ' . (int) config('max_cards') . '.';
+    }
+    db_exec('INSERT INTO print_runs (game_id, per_sheet, sheets, first_card, last_card) VALUES (?, ?, ?, ?, ?)',
+        [$game['id'], $perSheet, $sheets, $first, $last]);
+    return ['from' => $first, 'to' => $last, 'per' => $perSheet];
+}
+
+/**
+ * Mise en page d'une planche A4 (zone utile 190 × 264 mm sous l'en-tête) : nombre de colonnes et taille d'une case (mm),
+ * en choisissant la disposition qui donne les plus grandes cases.
+ */
+function sheet_layout(int $type, int $perSheet): array
+{
+    $best = ['cols' => 1, 'cell' => 0.0];
+    foreach ($type === 75 ? [1, 2] : [1] as $cols) {
+        $rows = (int) ceil($perSheet / $cols);
+        $ticketHeight = (264 - ($rows - 1) * 5) / $rows;
+        $ticketWidth = (190 - ($cols - 1) * 6) / $cols;
+        $cell = $type === 75
+            ? min(24, ($ticketHeight - 15) / 6, ($ticketWidth - 8) / 5)
+            : min(20, ($ticketHeight - 15) / 3);
+        if ($cell > $best['cell']) {
+            $best = ['cols' => $cols, 'cell' => round($cell, 1)];
+        }
+    }
+    return $best;
+}
 
 /** Générateur pseudo-aléatoire déterministe (graine de la session + numéro du carton). */
 function seeded_rng(string $seed): Closure

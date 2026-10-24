@@ -86,6 +86,21 @@ function db(): PDO
             created_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
         CREATE INDEX IF NOT EXISTS winners_game ON winners(game_id, id);
+        -- Séries de planches imprimées : numéros de grilles first_card à last_card, per_sheet grilles par planche (A4)
+        CREATE TABLE IF NOT EXISTS print_runs (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            game_id    INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+            per_sheet  INTEGER NOT NULL,
+            sheets     INTEGER NOT NULL,
+            first_card INTEGER NOT NULL,
+            last_card  INTEGER NOT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS print_runs_game ON print_runs(game_id, id);
+        CREATE TABLE IF NOT EXISTS settings (
+            key   TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
         SQL);
 
     return $pdo;
@@ -119,4 +134,19 @@ function db_exec(string $sql, array $params = []): int
     $stmt = db()->prepare($sql);
     $stmt->execute($params);
     return $stmt->rowCount();
+}
+
+function setting(string $key, string $default = ''): string
+{
+    $row = db_row('SELECT value FROM settings WHERE key = ?', [$key]);
+    return $row === null ? $default : (string) $row['value'];
+}
+
+function set_setting(string $key, ?string $value): void
+{
+    if ($value === null) {
+        db_exec('DELETE FROM settings WHERE key = ?', [$key]);
+        return;
+    }
+    db_exec('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value', [$key, $value]);
 }
