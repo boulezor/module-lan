@@ -26,9 +26,14 @@ s'ouvre sur l'ordinateur relié au projecteur et se met à jour tout seul (envir
     au mouvement de la souris et raccourcis (chiffres + Entrée, Espace = tirer, Retour arrière = annuler, A = auto,
     Échap = masquer, `?` = aide).
 - **Phases et lots** personnalisables (« Quine | Panier garni », une par ligne), liste des **gagnants**.
-- **Cartons imprimables** numérotés (6 par page A4 en 90, 4 en 75), toujours identiques pour une session.
-- **Vérification d'un carton** par son numéro : lignes complètes, carton plein, numéros manquants ;
-  affichage possible du carton sur l'écran avant de valider le gagnant.
+- **Planches à imprimer** : une planche = une feuille A4 de **1 à 6 grilles** (au choix, la taille des grilles s'adapte).
+  Plusieurs séries possibles pour un même bingo (ex. 20 planches de 3 puis 10 planches de 6) : les numéros de grilles
+  se suivent et ne sont jamais réutilisés. Historique des séries avec « Réimprimer », et réimpression de grilles précises.
+- **Vérification d'une grille** par son numéro : lignes complètes, carton plein, numéros manquants ;
+  affichage possible de la grille sur l'écran avant de valider le gagnant.
+- **Thème « École Saint-Martin »** (réservé aux administrateurs) : logo, titre et deux couleurs réglés dans
+  *Administration* (bouton pour reprendre automatiquement les couleurs du logo). Le logo et le titre apparaissent sur
+  l'écran de projection, l'écran BINGO et les planches imprimées. Le logo est rangé dans `private/bingo/theme/`.
 - **Message à l'écran** (« Pause de 10 minutes », etc.).
 
 ## Installation (Plesk)

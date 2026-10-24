@@ -31,6 +31,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     db_exec('UPDATE users SET is_admin = 1 - is_admin WHERE id = ?', [$id]);
                 }
                 break;
+            case 'school_theme':
+                $title = clean_line(post_string('school_title'), 60);
+                set_setting('school_title', $title !== '' ? $title : null);
+                foreach (['school_color1', 'school_color2'] as $key) {
+                    if (preg_match('/^#[0-9a-fA-F]{6}$/', post_string($key))) {
+                        set_setting($key, strtolower(post_string($key)));
+                    }
+                }
+                $upload = $_FILES['logo'] ?? null;
+                if (!empty($_POST['remove_logo']) && ($old = school_logo_path())) {
+                    unlink($old);
+                }
+                if (is_array($upload) && $upload['error'] === UPLOAD_ERR_OK) {
+                    $info = @getimagesize($upload['tmp_name']);
+                    $ext = ['image/png' => 'png', 'image/jpeg' => 'jpg', 'image/webp' => 'webp', 'image/gif' => 'gif'][$info['mime'] ?? ''] ?? null;
+                    if ($ext === null || $upload['size'] > 3 * 1024 * 1024) {
+                        flash('error', 'Logo refusé : image PNG, JPG, WebP ou GIF de 3 Mo maximum.');
+                        break;
+                    }
+                    $dir = config('private_dir') . '/theme';
+                    if (!is_dir($dir)) {
+                        mkdir($dir, 0775, true);
+                    }
+                    foreach (glob($dir . '/logo.*') as $old) {
+                        unlink($old);
+                    }
+                    move_uploaded_file($upload['tmp_name'], "{$dir}/logo.{$ext}");
+                } elseif (is_array($upload) && $upload['error'] !== UPLOAD_ERR_NO_FILE) {
+                    flash('error', "Le logo n'a pas pu être envoyé (fichier trop lourd ?).");
+                    break;
+                }
+                flash('success', 'Thème École Saint-Martin enregistré.');
+                break;
             case 'delete_user':
                 if ($id === (int) $admin['id']) {
                     flash('error', 'Tu ne peux pas supprimer ton propre compte.');
@@ -113,5 +146,32 @@ simple_open('Administration', $admin);
     </table>
 </section>
 
+<?php $school = school_theme(); ?>
+<section class="card">
+    <h2>🎨 Thème « École Saint-Martin » <small class="muted">(réservé aux administrateurs)</small></h2>
+    <p class="muted small">Choisis-le dans les réglages d'une session (thème 🔒). Le logo et le titre apparaissent sur l'écran de projection,
+        l'écran BINGO et les planches imprimées.</p>
+    <form method="post" enctype="multipart/form-data" class="school-form">
+        <?= csrf_field() ?>
+        <input type="hidden" name="action" value="school_theme">
+        <div class="school-preview" id="school-preview" style="--sm-1: <?= e($school['color1']) ?>; --sm-2: <?= e($school['color2']) ?>;">
+            <?php if ($school['logo']): ?><img src="<?= e($school['logo']) ?>" alt="Logo" id="school-logo"><?php else: ?><span class="no-logo" id="school-logo-empty">Pas encore de logo</span><?php endif; ?>
+            <strong id="school-title-preview"><?= e($school['title']) ?></strong>
+        </div>
+        <label>Logo de l'école <small>(PNG, JPG ou WebP, 3 Mo max ; idéalement sur fond blanc ou transparent)</small>
+            <input type="file" name="logo" accept="image/png,image/jpeg,image/webp,image/gif" id="school-logo-input">
+        </label>
+        <label>Titre affiché <input type="text" name="school_title" maxlength="60" value="<?= e($school['title']) ?>"></label>
+        <div class="colors">
+            <label>Couleur principale <input type="color" name="school_color1" value="<?= e($school['color1']) ?>"></label>
+            <label>Couleur secondaire <input type="color" name="school_color2" value="<?= e($school['color2']) ?>"></label>
+            <button type="button" class="btn btn-small" id="school-pick" <?= $school['logo'] ? '' : 'hidden' ?>>🎯 Reprendre les couleurs du logo</button>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn-primary btn">Enregistrer</button>
+            <?php if ($school['logo']): ?><label class="check"><input type="checkbox" name="remove_logo" value="1"> Retirer le logo</label><?php endif; ?>
+        </div>
+    </form>
+</section>
 <?php
-simple_close(['assets/simple.js']);
+simple_close(['assets/simple.js', 'assets/admin.js']);

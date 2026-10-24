@@ -26,6 +26,6 @@ return [
     // Durée de validité d'un lien d'invitation (jours)
     'invite_days' => 7,
 
-    // Nombre maximum de cartons imprimables en une fois
-    'max_cards' => 500,
+    // Numéro de grille le plus élevé (impression et vérification)
+    'max_cards' => 5000,
 ];

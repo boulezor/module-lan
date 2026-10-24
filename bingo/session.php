@@ -88,11 +88,11 @@ top_bar($user, '<div class="crumb" id="p-title">' . e($game['name']) . '</div>'
         </div>
 
         <div class="panel">
-            <h2>🔎 Vérifier un carton</h2>
+            <h2>🔎 Vérifier une grille</h2>
             <form id="p-check" class="inline-form">
-                <input type="number" id="p-check-no" min="1" max="<?= (int) config('max_cards') ?>" placeholder="N° du carton" required>
+                <input type="number" id="p-check-no" min="1" max="<?= (int) config('max_cards') ?>" placeholder="N° de la grille" required>
                 <button type="submit" class="btn">Vérifier</button>
-                <button type="button" class="btn" id="p-check-show" title="Vérifier et afficher le carton sur l'écran">📺 À l'écran</button>
+                <button type="button" class="btn" id="p-check-show" title="Vérifier et afficher la grille sur l'écran">📺 À l'écran</button>
             </form>
             <div id="p-check-result"></div>
         </div>
@@ -123,14 +123,33 @@ top_bar($user, '<div class="crumb" id="p-title">' . e($game['name']) . '</div>'
         </div>
 
         <div class="panel">
-            <h2>🖨️ Cartons à imprimer</h2>
-            <form action="cartons.php" method="get" target="_blank" class="inline-form cards-form">
+            <h2>🖨️ Planches à imprimer</h2>
+            <form action="cartons.php" method="post" target="_blank" class="print-form" id="p-print">
+                <?= csrf_field() ?>
                 <input type="hidden" name="id" value="<?= $id ?>">
-                <label>du n° <input type="number" name="from" min="1" max="<?= (int) config('max_cards') ?>" value="1"></label>
-                <label>au n° <input type="number" name="to" min="1" max="<?= (int) config('max_cards') ?>" value="24"></label>
-                <button type="submit" class="btn">Imprimer</button>
+                <label>Planches <input type="number" name="sheets" min="1" max="1000" value="10" required></label>
+                <label>Grilles par planche (A4)
+                    <select name="per">
+                        <?php for ($n = 1; $n <= CARDS_PER_SHEET_MAX; $n++): ?>
+                            <option value="<?= $n ?>" <?= $n === 3 ? 'selected' : '' ?>><?= $n ?> grille<?= $n > 1 ? 's' : '' ?></option>
+                        <?php endfor; ?>
+                    </select>
+                </label>
+                <button type="submit" class="btn btn-primary">Créer et imprimer</button>
             </form>
-            <p class="hint">Chaque carton est numéroté et toujours identique : pour vérifier un gagnant, encode son numéro ci-dessus.</p>
+            <p class="hint" id="p-print-hint"></p>
+            <div id="p-runs"></div>
+            <details class="reprint">
+                <summary>Réimprimer des grilles précises</summary>
+                <form action="cartons.php" method="get" target="_blank" class="inline-form cards-form">
+                    <input type="hidden" name="id" value="<?= $id ?>">
+                    <label>du n° <input type="number" name="from" min="1" max="<?= (int) config('max_cards') ?>" value="1"></label>
+                    <label>au n° <input type="number" name="to" min="1" max="<?= (int) config('max_cards') ?>" value="3"></label>
+                    <label>par <select name="per"><?php for ($n = 1; $n <= CARDS_PER_SHEET_MAX; $n++): ?><option value="<?= $n ?>" <?= $n === 3 ? 'selected' : '' ?>><?= $n ?></option><?php endfor; ?></select></label>
+                    <button type="submit" class="btn">Imprimer</button>
+                </form>
+            </details>
+            <p class="hint">Chaque grille a son propre numéro (jamais réutilisé d'une série à l'autre) : pour vérifier un gagnant, encode le numéro de sa grille.</p>
         </div>
 
         <div class="panel">
@@ -145,8 +164,8 @@ top_bar($user, '<div class="crumb" id="p-title">' . e($game['name']) . '</div>'
                 </div>
                 <div class="field">Thème de l'écran
                     <div class="themes">
-                        <?php foreach (GAME_THEMES as $key => $label): ?>
-                            <label class="theme-pick theme-<?= e($key) ?>"><input type="radio" name="theme" value="<?= e($key) ?>" <?= $game['theme'] === $key ? 'checked' : '' ?>><span><?= e($label) ?></span></label>
+                        <?php foreach (available_themes($user, $game) as $key => $label): ?>
+                            <label class="theme-pick theme-<?= e($key) ?>"><input type="radio" name="theme" value="<?= e($key) ?>" <?= $game['theme'] === $key ? 'checked' : '' ?>><span><?= e($label) ?><?= isset(ADMIN_THEMES[$key]) ? ' 🔒' : '' ?></span></label>
                         <?php endforeach; ?>
                     </div>
                 </div>
@@ -161,7 +180,7 @@ top_bar($user, '<div class="crumb" id="p-title">' . e($game['name']) . '</div>'
 
         <div class="panel danger-zone">
             <button type="button" class="btn btn-danger" id="p-reset">↺ Réinitialiser la partie</button>
-            <p class="hint">Efface les boules sorties et les gagnants pour rejouer. Les cartons restent les mêmes.</p>
+            <p class="hint">Efface les boules sorties et les gagnants pour rejouer. Les grilles imprimées restent valables.</p>
         </div>
     </section>
 </main>
@@ -171,7 +190,7 @@ top_bar($user, '<div class="crumb" id="p-title">' . e($game['name']) . '</div>'
         <h2>🎉 BINGO !</h2>
         <p class="muted" id="p-winner-phase"></p>
         <label>Nom du gagnant <small>(facultatif)</small> <input type="text" name="name" maxlength="60" autocomplete="off"></label>
-        <label>N° du carton <small>(facultatif)</small> <input type="number" name="card" min="1" max="<?= (int) config('max_cards') ?>"></label>
+        <label>N° de la grille <small>(facultatif)</small> <input type="number" name="card" min="1" max="<?= (int) config('max_cards') ?>"></label>
         <div class="row end">
             <button type="button" class="btn btn-ghost" value="cancel" id="p-winner-cancel">Annuler</button>
             <button type="submit" class="btn btn-bingo" value="ok">Afficher BINGO à l'écran</button>
