@@ -4,3 +4,4 @@ config.local.php
 *.sqlite
 *.sqlite-*
 */data/files/
+*/data/sessions/

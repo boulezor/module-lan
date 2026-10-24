@@ -36,6 +36,9 @@ function page_or_404(array $user, int $id, bool $withTrashed = false): array
 
 try {
     switch ($action) {
+        case 'csrf':
+            json_response(['csrf' => csrf_token()]);
+
         case 'sidebar':
             json_response(sidebar_data($user));
 
