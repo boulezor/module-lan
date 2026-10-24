@@ -1,0 +1,38 @@
+/* Boules de bingo (partagées par l'écran et le panneau) */
+.c0 { --ball: #e53935; } .c1 { --ball: #fb8c00; } .c2 { --ball: #fbc02d; } .c3 { --ball: #43a047; } .c4 { --ball: #00acc1; }
+.c5 { --ball: #1e88e5; } .c6 { --ball: #5e35b1; } .c7 { --ball: #d81b60; } .c8 { --ball: #8e24aa; }
+.l0 { --ball: #1e88e5; } .l1 { --ball: #e53935; } .l2 { --ball: #8e24aa; } .l3 { --ball: #43a047; } .l4 { --ball: #fb8c00; }
+
+.ball {
+    --size: 56px;
+    position: relative;
+    display: inline-grid;
+    place-items: center;
+    width: var(--size);
+    height: var(--size);
+    flex: none;
+    border-radius: 50%;
+    background:
+        radial-gradient(circle at 30% 24%, rgba(255, 255, 255, .9) 0 5%, rgba(255, 255, 255, 0) 20%),
+        radial-gradient(circle at 50% 50%, var(--ball) 0 50%, color-mix(in srgb, var(--ball) 55%, #000) 100%);
+    box-shadow: inset calc(var(--size) * -.08) calc(var(--size) * -.1) calc(var(--size) * .2) rgba(0, 0, 0, .35),
+        0 calc(var(--size) * .12) calc(var(--size) * .3) rgba(0, 0, 0, .35);
+}
+.ball-face {
+    width: 60%;
+    height: 60%;
+    border-radius: 50%;
+    background: radial-gradient(circle at 40% 32%, #fff 0 45%, #e8e8f0 100%);
+    box-shadow: inset 0 calc(var(--size) * -.03) calc(var(--size) * .05) rgba(0, 0, 0, .18);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #17142e;
+    line-height: .95;
+    font-variant-numeric: tabular-nums;
+}
+.ball-face b { font-size: calc(var(--size) * .28); font-weight: 900; letter-spacing: -.02em; }
+.ball-face small { font-size: calc(var(--size) * .12); font-weight: 800; color: var(--ball); filter: brightness(.8); }
+.ball.empty { --ball: #6b6890; }
+.ball.empty .ball-face b { color: #8d8aa8; }

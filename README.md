@@ -7,6 +7,7 @@ Mes petites applis web, **une par dossier**, publiées automatiquement sur **htt
 |---------|---------|-------|
 | [`lan/`](lan/) | https://tbxm.be/lan/ | Vote des jeux LAN : listes perso, pot commun et vote |
 | [`notes/`](notes/) | https://tbxm.be/notes/ | Notes partagées façon Notion avec assistant IA (accès sur invitation) |
+| [`bingo/`](bingo/) | https://tbxm.be/bingo/ | Bingo à projeter en salle : tirage manuel ou automatique, cartons imprimables |
 
 La racine (https://tbxm.be/) liste toutes les applis (chaque dossier contenant un `app.json`).
 
