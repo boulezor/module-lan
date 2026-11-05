@@ -77,7 +77,7 @@ page_header('Voter', 'voter');
     <h1>Voter · <?= e($lan['title']) ?></h1>
     <p class="muted">📅 <?= e(format_lan_dates($lan)) ?></p>
     <p class="muted">Un vote par personne : donne ton avis sur <strong>chaque</strong> jeu du pot commun, puis envoie ton vote.
-        Le classement additionne les points de tout le monde.</p>
+        Le classement tient compte des avis de tout le monde.</p>
 
     <?php if (!$pot): ?>
         <div class="alert alert-info">Le pot commun est vide.</div>
@@ -109,7 +109,7 @@ page_header('Voter', 'voter');
                                     <label class="rate <?= option_class((int) $option['points']) ?>">
                                         <input type="radio" name="ratings[<?= (int) $game['id'] ?>]" value="<?= (int) $option['id'] ?>" required
                                             <?= $current === (int) $option['id'] ? 'checked' : '' ?>>
-                                        <span><?= e($option['label']) ?> <small><?= sprintf('%+d', (int) $option['points']) ?></small></span>
+                                        <span><?= e($option['label']) ?></span>
                                     </label>
                                 <?php endforeach; ?>
                             </div>
