@@ -197,6 +197,49 @@ function shift_slots(array $slot, int $minutes): int
     return count($later);
 }
 
+/**
+ * Fiche d'un jeu du planning (description, joueurs, points forts / faibles, liens) :
+ * celle du pot commun si le créneau y est lié, sinon une recherche Steam / Wikipédia faite une fois puis gardée.
+ * Le créneau « jeu préféré » montre la fiche du jeu le mieux noté.
+ */
+function slot_game_info(array $slot): ?array
+{
+    if ($slot['kind'] === 'favorite') {
+        $favorite = favorite_game(lan_slots((int) $slot['lan_id']));
+        return $favorite ? slot_game_info(db_row('SELECT * FROM schedule_slots WHERE id = ?', [$favorite['id']])) : null;
+    }
+    if ($slot['kind'] !== 'game') {
+        return null;
+    }
+    $game = $slot['proposal_id'] ? db_row('SELECT * FROM proposals WHERE id = ?', [$slot['proposal_id']]) : null;
+    if (!$game) {
+        $game = json_decode((string) $slot['info'], true);
+        if (!is_array($game)) {
+            $game = lookup_game($slot['title']);
+            if ($game['source'] !== '') {
+                db_exec('UPDATE schedule_slots SET info = ? WHERE id = ?', [json_encode($game, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $slot['id']]);
+            }
+        }
+    }
+    [$description, $pros, $cons] = game_text_parts($game + ['pros' => '', 'cons' => '']);
+    $store = (string) ($game['store_url'] ?? '');
+    $steamSearch = 'https://store.steampowered.com/search/?term=' . rawurlencode($slot['kind'] === 'game' ? $slot['title'] : $game['title']);
+    return [
+        'title' => $slot['title'],
+        'image' => (string) ($game['image_url'] ?? ''),
+        'description' => $description,
+        'pros' => $pros,
+        'cons' => $cons,
+        'players' => ($game['players'] ?? '') !== '' ? players_label((string) $game['players']) : '',
+        'tags' => (string) ($game['tags'] ?? ''),
+        'video' => is_youtube_search_url((string) ($game['video_url'] ?? '')) ? '' : (string) ($game['video_url'] ?? ''),
+        'store' => $store,
+        'steam' => str_contains($store, 'steampowered.com') ? $store : $steamSearch,
+        'steam_search' => !str_contains($store, 'steampowered.com'),
+        'comment' => (string) ($game['comment'] ?? ''),
+    ];
+}
+
 /** Créneau en cours ou, à défaut, le prochain (pour le bouton « retard ») */
 function current_or_next_slot(int $lanId): ?array
 {

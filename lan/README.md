@@ -104,6 +104,9 @@ Chacun peut changer son mot de passe dans « Ma liste › Mon compte ».
   Les envois sont chiffrés (Web Push, clés VAPID créées automatiquement et gardées dans la base privée).
 - **Notes ⭐** (1 à 5 étoiles) des jeux joués et **palmarès** ; le créneau « Revanche / jeu préféré » affiche
   automatiquement le jeu le mieux noté.
+- **Fiche de chaque jeu** : clic sur un créneau (ou sur le jeu en cours / suivant) → image, description, nombre de joueurs,
+  points forts / faibles, bande-annonce et bouton **« Voir / acheter sur Steam »**. Fiche du pot commun si le jeu y est,
+  sinon recherche Steam / Wikipédia faite une seule fois puis gardée (lien de recherche Steam à défaut).
 - **Grand écran** (TV / projecteur) : grand affichage, annonce sonore à chaque changement de jeu.
 - **Organisateur** (connecté sur la page Résultats) : *Résultats › Créer / modifier le planning* :
   - import d'un planning collé en texte (« Vendredi 13 » puis « 16:00 - 17:30 Far Far West », une ligne par créneau ;

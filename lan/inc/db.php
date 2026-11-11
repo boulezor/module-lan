@@ -167,6 +167,8 @@ function db(): PDO
     $pdo->exec("UPDATE lans SET starts_at = lan_date WHERE starts_at = ''");
     $pdo->exec("UPDATE lans SET ends_at = starts_at WHERE ends_at = ''");
     add_missing_column($pdo, 'lans', 'remind_minutes', 'INTEGER NOT NULL DEFAULT 10');
+    // Fiche d'un jeu du planning absent du pot commun (recherche Steam / Wikipédia mise en cache)
+    add_missing_column($pdo, 'schedule_slots', 'info', "TEXT NOT NULL DEFAULT ''");
 
     // Options de vote par défaut (modifiables ensuite dans la page Résultats)
     if ((int) $pdo->query('SELECT COUNT(*) FROM vote_options')->fetchColumn() === 0) {
