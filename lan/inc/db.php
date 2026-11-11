@@ -111,6 +111,46 @@ function db(): PDO
             updated_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             UNIQUE (proposal_id, user_id)
         );
+        -- Planning de la LAN : créneaux (jeu, pause, ou « jeu préféré » choisi par les notes)
+        CREATE TABLE IF NOT EXISTS schedule_slots (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            lan_id      INTEGER NOT NULL REFERENCES lans(id) ON DELETE CASCADE,
+            starts_at   TEXT NOT NULL,              -- 'AAAA-MM-JJ HH:MM' (heure locale)
+            ends_at     TEXT NOT NULL,
+            kind        TEXT NOT NULL DEFAULT 'game', -- game | break | favorite
+            title       TEXT NOT NULL,
+            proposal_id INTEGER REFERENCES proposals(id) ON DELETE SET NULL,
+            note        TEXT NOT NULL DEFAULT '',
+            created_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS schedule_lan ON schedule_slots(lan_id, starts_at);
+        -- Note (1 à 5 étoiles) d'un jeu joué pendant la LAN
+        CREATE TABLE IF NOT EXISTS slot_ratings (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            slot_id    INTEGER NOT NULL REFERENCES schedule_slots(id) ON DELETE CASCADE,
+            user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            stars      INTEGER NOT NULL,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (slot_id, user_id)
+        );
+        -- Téléphones / ordinateurs abonnés aux notifications push
+        CREATE TABLE IF NOT EXISTS push_subscriptions (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id    INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            endpoint   TEXT NOT NULL UNIQUE,
+            p256dh     TEXT NOT NULL,
+            auth       TEXT NOT NULL,
+            failures   INTEGER NOT NULL DEFAULT 0,
+            last_ok_at TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        -- Rappels déjà envoyés (un par créneau et par type)
+        CREATE TABLE IF NOT EXISTS push_log (
+            slot_id INTEGER NOT NULL REFERENCES schedule_slots(id) ON DELETE CASCADE,
+            kind    TEXT NOT NULL,
+            sent_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (slot_id, kind)
+        );
         SQL);
 
     // Colonnes ajoutées après coup : mise à jour des bases déjà créées
@@ -126,6 +166,7 @@ function db(): PDO
     add_missing_column($pdo, 'lans', 'ends_at', "TEXT NOT NULL DEFAULT ''");
     $pdo->exec("UPDATE lans SET starts_at = lan_date WHERE starts_at = ''");
     $pdo->exec("UPDATE lans SET ends_at = starts_at WHERE ends_at = ''");
+    add_missing_column($pdo, 'lans', 'remind_minutes', 'INTEGER NOT NULL DEFAULT 10');
 
     // Options de vote par défaut (modifiables ensuite dans la page Résultats)
     if ((int) $pdo->query('SELECT COUNT(*) FROM vote_options')->fetchColumn() === 0) {

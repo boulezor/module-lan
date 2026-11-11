@@ -12,6 +12,7 @@ function page_header(string $title, string $active): void
     $nav = [
         'accueil' => ['index.php', 'LAN'],
         'liste' => ['ma-liste.php', 'Ma liste'],
+        'planning' => ['planning.php', 'Planning'],
         'voter' => ['voter.php', 'Voter'],
         'resultats' => ['resultats.php', 'Résultats 🔒'],
     ];
@@ -24,8 +25,14 @@ function page_header(string $title, string $active): void
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= e($title) ?> · <?= e(config('site_title')) ?></title>
     <link rel="stylesheet" href="<?= asset('assets/style.css') ?>">
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="theme-color" content="#181c2f">
+    <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="LAN">
 </head>
-<body>
+<body class="page-<?= e($active) ?>">
 <header class="site-header">
     <div class="wrap">
         <a class="brand" href="index.php">🎮 <?= e(config('site_title')) ?></a>
@@ -52,11 +59,14 @@ function page_header(string $title, string $active): void
     <?php endforeach;
 }
 
-function page_footer(): void
+function page_footer(array $scripts = []): void
 {
     ?>
 </main>
 <script src="<?= asset('assets/app.js') ?>"></script>
+<?php foreach ($scripts as $script): ?>
+<script src="<?= asset($script) ?>"></script>
+<?php endforeach; ?>
 </body>
 </html>
     <?php

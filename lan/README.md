@@ -93,3 +93,25 @@ Chacun peut changer son mot de passe dans « Ma liste › Mon compte ».
    même une fois les propositions fermées.
 4. L'organisateur ferme les propositions et ouvre les votes ; chacun note tous les jeux.
 5. L'organisateur ferme les votes et consulte le classement.
+
+## Planning en direct, rappels push et notes
+
+- **Page Planning** (`planning.php`, installable sur le téléphone) : jeu en cours avec compte à rebours et barre de
+  progression, jeu suivant (en orange quand le changement approche), programme par jour comme le planning papier.
+- **Rappels push** : chacun touche « Activer les rappels » (sur iPhone : d'abord *Partager › Sur l'écran d'accueil*,
+  puis ouvrir l'appli depuis l'icône). Notification X min avant chaque créneau (réglable : 5, 10, 15, 20 min ou aucune),
+  puis au début du créneau (« C'est parti : … », avec « pense à noter » le jeu précédent).
+  Les envois sont chiffrés (Web Push, clés VAPID créées automatiquement et gardées dans la base privée).
+- **Notes ⭐** (1 à 5 étoiles) des jeux joués et **palmarès** ; le créneau « Revanche / jeu préféré » affiche
+  automatiquement le jeu le mieux noté.
+- **Grand écran** (TV / projecteur) : grand affichage, annonce sonore à chaque changement de jeu.
+- **Organisateur** (connecté sur la page Résultats) : *Résultats › Créer / modifier le planning* :
+  - import d'un planning collé en texte (« Vendredi 13 » puis « 16:00 - 17:30 Far Far West », une ligne par créneau ;
+    après minuit, le créneau passe tout seul au lendemain) ;
+  - modification / ajout / suppression de créneaux, lien avec un jeu du pot commun (image) ;
+  - **retard** : boutons −5 / +5 / +15 / +30 min sur la page Planning (décale le créneau en cours et toute la suite,
+    les rappels suivent).
+
+Envoi des rappels à l'heure : ajouter une tâche planifiée Plesk (*Tâches planifiées › Ajouter › Exécuter un script PHP*)
+`/var/www/vhosts/tbxm.be/httpdocs/lan/cron.php`, toutes les minutes. Sans elle, les rappels partent quand une page
+Planning est ouverte quelque part (par exemple sur la TV).
