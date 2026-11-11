@@ -79,6 +79,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $old = db_row('SELECT * FROM schedule_slots WHERE id = ? AND lan_id = ?', [$id, $lanId]);
                     db_exec('UPDATE schedule_slots SET starts_at = ?, ends_at = ?, kind = ?, title = ?, proposal_id = ?, note = ? WHERE id = ? AND lan_id = ?',
                         [...array_values($slot), $id, $lanId]);
+                    if ($old && $old['title'] !== $slot['title']) {
+                        db_exec("UPDATE schedule_slots SET info = '' WHERE id = ?", [$id]); // nouvelle fiche à rechercher
+                    }
                     if ($old && $old['starts_at'] !== $slot['starts_at'] && slot_ts($slot['starts_at']) > time()) {
                         db_exec('DELETE FROM push_log WHERE slot_id = ?', [$id]); // rappel renvoyé à la nouvelle heure
                     }

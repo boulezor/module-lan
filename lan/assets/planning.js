@@ -53,7 +53,8 @@
             const icon = current.kind === 'break' ? '⏸️' : current.kind === 'favorite' ? '🏆' : '🎮';
             const label = current.kind === 'favorite' ? 'Revanche · jeu préféré' : current.kind === 'break' ? 'En ce moment' : 'On joue à';
             const progress = Math.min(100, 100 * (t - current.start) / (current.end - current.start));
-            html += `<div class="now-main ${current.image ? 'has-img' : ''}" ${current.image ? `style="--img: url('${esc(current.image)}')"` : ''}>
+            const info = current.kind !== 'break' ? ` data-info="${current.id}" role="button" tabindex="0" title="Voir la fiche du jeu"` : '';
+            html += `<div class="now-main ${current.image ? 'has-img' : ''}${info ? ' clickable' : ''}"${info} ${current.image ? `style="--img: url('${esc(current.image)}')"` : ''}>
                 <span class="now-label">${icon} ${label}</span>
                 <strong class="now-title">${esc(current.title)}</strong>
                 <span class="now-time">${hm(current.from)} – ${hm(current.to)}${current.note ? ' · ' + esc(current.note) : ''}</span>
@@ -75,7 +76,8 @@
         }
         if (next && (current || started)) {
             const soon = next.start - t <= state.remind * 60000;
-            html += `<div class="now-next${soon ? ' soon' : ''}">
+            const info = next.kind !== 'break' ? ` data-info="${next.id}" role="button" tabindex="0"` : '';
+            html += `<div class="now-next${soon ? ' soon' : ''}${info ? ' clickable' : ''}"${info}>
                 <span>${soon ? '⏰ Changement dans' : 'Ensuite dans'} <b>${duration(next.start - t)}</b></span>
                 <strong>${esc(next.title)}</strong><span class="muted">${hm(next.from)} – ${hm(next.to)}</span></div>`;
         }
@@ -118,9 +120,10 @@
                 const status = current && s.id === current.id ? 'is-now' : next && s.id === next.id ? 'is-next' : s.end <= t ? 'is-past' : '';
                 const color = s.kind === 'game' ? (colors[s.label] ??= palette[i++ % palette.length]) : 'c-' + s.kind;
                 const canRate = s.kind !== 'break' && s.start <= t && state.user;
-                return `<li class="slot ${color} ${status}" id="slot-${s.id}">
+                const info = s.kind !== 'break' ? ` data-info="${s.id}" tabindex="0" title="Voir la fiche du jeu"` : '';
+                return `<li class="slot ${color} ${status}${info ? ' clickable' : ''}" id="slot-${s.id}"${info}>
                     <span class="slot-time">${hm(s.from)} – ${hm(s.to)}${status === 'is-now' ? ' <b class="live">● EN COURS</b>' : ''}</span>
-                    <strong class="slot-title">${s.kind === 'favorite' ? '🏆 ' : ''}${esc(s.title)}</strong>
+                    <strong class="slot-title">${s.kind === 'favorite' ? '🏆 ' : ''}${esc(s.title)}${info ? ' <span class="info-dot" aria-hidden="true">ⓘ</span>' : ''}</strong>
                     ${s.kind === 'favorite' && s.title !== s.label ? `<span class="slot-note">${esc(s.label)}</span>` : ''}
                     ${s.note ? `<span class="slot-note">${esc(s.note)}</span>` : ''}
                     ${s.kind !== 'break' && (canRate || s.ratings) ? `<span class="slot-rate">${canRate ? stars(s.mine || 0, s.id, true) : ''}${avgHtml(s)}</span>` : ''}
@@ -193,7 +196,11 @@
             const item = state.slots.find((s) => s.id === slot);
             const newValue = item && item.mine === value ? 0 : value;
             const data = await post({ action: 'rate', slot, stars: newValue });
-            if (data.error) toast(data.error); else { toast(newValue ? `Merci ! ${'★'.repeat(newValue)}` : 'Note retirée'); refresh(); }
+            if (data.error) toast(data.error); else {
+                toast(newValue ? `Merci ! ${'★'.repeat(newValue)}` : 'Note retirée');
+                await refresh();
+                if (dialog.open && +dialog.dataset.slot === slot) openInfo(slot);
+            }
             return;
         }
         const shift = event.target.closest('[data-shift]');
@@ -202,6 +209,72 @@
             toast(data.error || data.message);
             refresh();
         }
+    });
+
+    /* ---------- Fiche d'un jeu (clic sur un créneau) ---------- */
+
+    const dialog = $('game-dialog');
+    const infoCache = {};
+
+    function infoHtml(slot, info) {
+        const list = (items) => '<ul>' + items.map((x) => `<li>${esc(x)}</li>`).join('') + '</ul>';
+        const tags = info.tags ? `<p class="tags">${info.tags.split(', ').map((t) => `<span>${esc(t)}</span>`).join('')}</p>` : '';
+        const proscons = info.pros.length || info.cons.length
+            ? `<div class="proscons">${info.cons.length ? `<div class="cons"><h4>👎 Points faibles</h4>${list(info.cons)}</div>` : ''}${info.pros.length ? `<div class="pros"><h4>👍 Points forts</h4>${list(info.pros)}</div>` : ''}</div>` : '';
+        const rating = slot.start <= now() && state.user
+            ? `<div class="dialog-rate"><span>Ta note</span>${stars(slot.mine || 0, slot.id)}${avgHtml(slot)}</div>`
+            : (slot.ratings ? `<div class="dialog-rate">${avgHtml(slot)}</div>` : '');
+        return `${info.image ? `<img class="dialog-img" src="${esc(info.image)}" alt="">` : ''}
+            <div class="dialog-content">
+                <p class="dialog-when">${slot.kind === 'favorite' ? '🏆 Revanche · ' : ''}${hm(slot.from)} – ${hm(slot.to)}${slot.note ? ' · ' + esc(slot.note) : ''}</p>
+                <h2 id="game-dialog-title">${esc(slot.kind === 'favorite' ? slot.title : info.title)}</h2>
+                ${info.players ? `<p class="players">👥 ${esc(info.players)}</p>` : ''}
+                ${tags}
+                ${info.comment ? `<p class="comment">💬 ${esc(info.comment)}</p>` : ''}
+                ${info.description ? `<p class="dialog-desc">${esc(info.description).replace(/\n/g, '<br>')}</p>` : '<p class="muted">Pas encore de description pour ce jeu.</p>'}
+                ${proscons}
+                ${rating}
+                <p class="dialog-links">
+                    <a class="button steam-btn" href="${esc(info.steam)}" target="_blank" rel="noopener">🛒 ${info.steam_search ? 'Chercher sur Steam' : 'Voir / acheter sur Steam'}</a>
+                    ${info.video ? `<a class="button btn-secondary" href="${esc(info.video)}" target="_blank" rel="noopener">▶ Bande-annonce</a>` : ''}
+                    ${info.store && info.steam_search ? `<a class="button btn-secondary" href="${esc(info.store)}" target="_blank" rel="noopener">🔗 Fiche du jeu</a>` : ''}
+                </p>
+            </div>`;
+    }
+
+    async function openInfo(id) {
+        const slot = state.slots.find((s) => s.id === id);
+        if (!slot) return;
+        const body = $('game-dialog-body');
+        dialog.dataset.slot = id;
+        const key = id + ':' + slot.title;
+        if (infoCache[key]) {
+            body.innerHTML = infoHtml(slot, infoCache[key]);
+        } else {
+            body.innerHTML = `<div class="dialog-content"><h2 id="game-dialog-title">${esc(slot.title)}</h2><p class="muted">Recherche de la fiche du jeu…</p></div>`;
+        }
+        if (!dialog.open) dialog.showModal();
+        if (infoCache[key]) return;
+        const res = await fetch(`api/planning.php?action=info&slot=${id}`).catch(() => null);
+        const data = res ? await res.json().catch(() => ({})) : {};
+        if (!data.info) {
+            body.innerHTML = `<div class="dialog-content"><h2 id="game-dialog-title">${esc(slot.title)}</h2><p class="muted">${esc(data.error || 'Fiche indisponible.')}</p>
+                <p><a class="button steam-btn" href="https://store.steampowered.com/search/?term=${encodeURIComponent(slot.title)}" target="_blank" rel="noopener">🛒 Chercher sur Steam</a></p></div>`;
+            return;
+        }
+        infoCache[key] = data.info;
+        if (+dialog.dataset.slot === id) body.innerHTML = infoHtml(slot, data.info);
+    }
+
+    document.addEventListener('click', (event) => {
+        if (event.target.closest('.stars, a, button:not([data-close])')) return;
+        if (event.target.closest('[data-close]') || event.target === dialog) { dialog.close(); return; }
+        const target = event.target.closest('[data-info]');
+        if (target) openInfo(+target.dataset.info);
+    });
+    document.addEventListener('keydown', (event) => {
+        const target = event.target.closest?.('[data-info]');
+        if (target && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); openInfo(+target.dataset.info); }
     });
 
     /* ---------- Notifications push ---------- */

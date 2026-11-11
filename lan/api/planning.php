@@ -19,6 +19,13 @@ function json_out(array $data, int $status = 200): never
 
 $user = current_user();
 
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'info') {
+    $slot = db_row('SELECT * FROM schedule_slots WHERE id = ?', [(int) ($_GET['slot'] ?? 0)]);
+    session_write_close();
+    $info = $slot ? slot_game_info($slot) : null;
+    json_out($info ? ['info' => $info] : ['error' => 'Pas de fiche pour ce créneau.'], $info ? 200 : 404);
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $lan = planning_lan((int) ($_GET['lan'] ?? 0));
     if (!$lan) {

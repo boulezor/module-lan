@@ -36,6 +36,11 @@ if (!$lan || !$state['slots']): ?>
     <p class="muted small">Moyenne des notes ⭐ de chacun. Le jeu en tête est rejoué lors de la « revanche ».</p>
     <ol class="palmares" id="palmares"></ol>
 
+    <dialog class="game-dialog" id="game-dialog" aria-labelledby="game-dialog-title">
+        <button type="button" class="dialog-close" data-close aria-label="Fermer">✕</button>
+        <div id="game-dialog-body"></div>
+    </dialog>
+
     <script id="planning-state" type="application/json"><?= json_encode($state, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP) ?></script>
 <?php endif;
 page_footer($state && $state['slots'] ? ['assets/planning.js'] : []);
