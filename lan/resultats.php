@@ -347,6 +347,12 @@ function admin_button(string $action, string $label, string $class = 'btn-second
         <?= admin_button('reset_votes', 'Votes à zéro', 'btn-danger', $lanId, 'Supprimer tous les votes de cette LAN ?', $lanId) ?>
     </div>
 
+    <div class="card admin-bar">
+        <span>🗓️ Planning : <strong><?= (int) (db_row('SELECT COUNT(*) AS n FROM schedule_slots WHERE lan_id = ?', [$lanId])['n'] ?? 0) ?> créneaux</strong></span>
+        <a class="button btn-secondary" href="planning-admin.php?lan=<?= $lanId ?>">Créer / modifier le planning</a>
+        <a href="planning.php?lan=<?= $lanId ?>">Voir le planning</a>
+    </div>
+
     <details class="card">
         <summary>✏️ Modifier la LAN (nom, dates)</summary>
         <form method="post">

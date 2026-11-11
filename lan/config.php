@@ -49,6 +49,12 @@ return [
     'youtube_api_key' => '',
     'youtube_base_url' => 'https://www.googleapis.com/youtube/v3',
 
+    // Notifications push du planning : contact transmis aux services push (adresse du site ou mailto:…).
+    'push_contact' => 'https://tbxm.be/lan/',
+
+    // Clé de la tâche planifiée (cron.php?key=…) si elle est appelée par URL ; vide = uniquement en ligne de commande.
+    'cron_key' => '',
+
     // Délai max (secondes) de chaque appel vers Steam / Wikipédia / OpenAI / YouTube.
     'http_timeout' => 6,
 ];

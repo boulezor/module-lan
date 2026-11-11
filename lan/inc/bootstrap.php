@@ -18,5 +18,7 @@ require __DIR__ . '/auth.php';
 require __DIR__ . '/games.php';
 require __DIR__ . '/lookup.php';
 require __DIR__ . '/layout.php';
+require __DIR__ . '/planning.php';
+require __DIR__ . '/push.php';
 
 date_default_timezone_set(config('timezone'));

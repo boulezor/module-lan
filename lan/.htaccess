@@ -4,3 +4,11 @@ Options -Indexes
 <FilesMatch "^config.*\.php$">
     Require all denied
 </FilesMatch>
+
+# Application installable (PWA) : manifeste et service worker toujours à jour
+AddType application/manifest+json .webmanifest
+<IfModule mod_headers.c>
+    <Files "sw.js">
+        Header set Cache-Control "no-cache"
+    </Files>
+</IfModule>

@@ -35,6 +35,9 @@ page_header('LAN', 'accueil');
         <?php if ((int) $lan['votes_open'] && $pot): ?>
             <a class="button btn-secondary" href="voter.php?lan=<?= (int) $lan['id'] ?>">🗳️ Voter</a>
         <?php endif; ?>
+        <?php if (db_row('SELECT 1 FROM schedule_slots WHERE lan_id = ?', [$lan['id']])): ?>
+            <a class="button btn-secondary" href="planning.php?lan=<?= (int) $lan['id'] ?>">🗓️ Planning et rappels</a>
+        <?php endif; ?>
         <?php if (!$user): ?>
             <a href="connexion.php">Se connecter / créer un compte</a>
         <?php endif; ?>
